@@ -25,7 +25,11 @@ export default async function EventSettingsPage({
   // Ensure event.event_date is a string and formatted as YYYY-MM-DD for the input type="date"
   const formattedDate = event.event_date ? new Date(event.event_date).toISOString().split('T')[0] : ''
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL 
+    ? process.env.NEXT_PUBLIC_APP_URL 
+    : process.env.NEXT_PUBLIC_VERCEL_URL 
+      ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` 
+      : 'http://localhost:3000'
 
   return (
     <div className="space-y-6">

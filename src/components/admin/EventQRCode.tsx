@@ -69,12 +69,61 @@ export function EventQRCode({ slug, brideName, groomName, appUrl }: EventQRCodeP
   const handleDownload = () => {
     if (!qrDataUrl) return
 
-    const link = document.createElement('a')
-    link.download = `qr-boda-${brideName}-${groomName}.png`
-    link.href = qrDataUrl
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    const qrImg = new Image()
+    qrImg.onload = () => {
+      const padding = 60
+      const qrSize = qrImg.width
+      const titleFontSize = Math.round(qrSize * 0.045)
+      const codeFontSize = Math.round(qrSize * 0.06)
+      const labelFontSize = Math.round(qrSize * 0.03)
+      const spacingAfterQR = Math.round(qrSize * 0.04)
+      const spacingBetweenTexts = Math.round(qrSize * 0.025)
+      const totalTextHeight = titleFontSize + spacingBetweenTexts + labelFontSize + spacingBetweenTexts + codeFontSize + padding
+
+      const canvasWidth = qrSize + padding * 2
+      const canvasHeight = qrSize + padding + spacingAfterQR + totalTextHeight
+
+      const canvas = document.createElement('canvas')
+      canvas.width = canvasWidth
+      canvas.height = canvasHeight
+      const ctx = canvas.getContext('2d')!
+
+      // Background
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+
+      // QR code
+      ctx.drawImage(qrImg, padding, padding, qrSize, qrSize)
+
+      let yPos = padding + qrSize + spacingAfterQR
+
+      // Title: "Boda de X & Y"
+      ctx.fillStyle = '#1a1a2e'
+      ctx.font = `600 ${titleFontSize}px system-ui, -apple-system, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.fillText(`Boda de ${brideName} & ${groomName}`, canvasWidth / 2, yPos + titleFontSize)
+      yPos += titleFontSize + spacingBetweenTexts
+
+      // Label: "Código de sala"
+      ctx.fillStyle = '#888888'
+      ctx.font = `400 ${labelFontSize}px system-ui, -apple-system, sans-serif`
+      ctx.fillText('Código de sala', canvasWidth / 2, yPos + labelFontSize)
+      yPos += labelFontSize + spacingBetweenTexts
+
+      // Room code (slug)
+      ctx.fillStyle = '#1a1a2e'
+      ctx.font = `700 ${codeFontSize}px monospace`
+      ctx.fillText(slug, canvasWidth / 2, yPos + codeFontSize)
+
+      // Download
+      const link = document.createElement('a')
+      link.download = `qr-boda-${brideName}-${groomName}.png`
+      link.href = canvas.toDataURL('image/png')
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+    qrImg.src = qrDataUrl
   }
 
   return (

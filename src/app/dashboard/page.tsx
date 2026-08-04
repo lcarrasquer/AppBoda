@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
-import { Button, buttonVariants } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { PlusCircle, Calendar, MapPin } from 'lucide-react'
+import { buttonVariants } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { PlusCircle } from 'lucide-react'
 import Link from 'next/link'
+import { EventCard } from './EventCard'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -35,42 +36,7 @@ export default async function DashboardPage() {
       {events && events.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events.map((event) => (
-            <Card key={event.id} className="hover:border-primary/50 transition-colors">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-xl">
-                      {event.bride_name} & {event.groom_name}
-                    </CardTitle>
-                    <CardDescription className="mt-1 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(event.event_date).toLocaleDateString()}
-                    </CardDescription>
-                  </div>
-                  <div className={`px-2 py-1 rounded-full text-xs font-medium uppercase tracking-wider ${
-                    event.status === 'active' ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
-                    event.status === 'draft' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
-                    'bg-muted text-muted-foreground'
-                  }`}>
-                    {event.status}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-muted-foreground flex items-center gap-1">
-                  <MapPin className="w-4 h-4" />
-                  {event.location || 'Sin ubicación definida'}
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-between border-t pt-4">
-                <Link href={`/dashboard/${event.id}/settings`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-                  Configurar
-                </Link>
-                <Link href={`/e/${event.slug}`} target="_blank" className={buttonVariants({ variant: "default", size: "sm" })}>
-                  Ver sala
-                </Link>
-              </CardFooter>
-            </Card>
+            <EventCard key={event.id} event={event} />
           ))}
         </div>
       ) : (
