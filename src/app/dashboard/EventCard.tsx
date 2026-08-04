@@ -78,7 +78,7 @@ export function EventCard({ event }: EventCardProps) {
         <Link href={`/dashboard/${event.id}/settings`} className={buttonVariants({ variant: "outline", size: "sm" })}>
           Configurar
         </Link>
-        <Link href={`/e/${event.slug}`} target="_blank" className={buttonVariants({ variant: "default", size: "sm" })}>
+        <Link href={`/e/${event.slug}`} className={buttonVariants({ variant: "default", size: "sm" })}>
           Ver sala
         </Link>
       </CardFooter>

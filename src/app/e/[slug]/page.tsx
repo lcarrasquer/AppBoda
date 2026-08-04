@@ -26,19 +26,23 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
     : undefined
 
   return (
-    <div className="min-h-screen bg-muted/20 pb-20" style={themeStyle}>
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b">
-        <div className="container mx-auto px-4 py-2 flex flex-col items-center justify-center relative">
-          <h1 className="font-semibold text-lg text-primary truncate px-12">
+    <div className="min-h-screen pb-20 relative overflow-hidden" style={themeStyle}>
+      {/* Background glowing orb accents */}
+      <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/3 right-1/4 w-96 h-96 bg-sky-400/15 rounded-full blur-3xl pointer-events-none" />
+
+      <header className="sticky top-0 z-20 glass-panel backdrop-blur-xl border-b border-white/40 dark:border-white/10 shadow-sm">
+        <div className="container mx-auto px-4 py-3 flex flex-col items-center justify-center relative">
+          <h1 className="font-extrabold text-lg bg-gradient-to-r from-primary via-sky-600 to-primary bg-clip-text text-transparent truncate px-12">
             {event.bride_name} & {event.groom_name}
           </h1>
-          <span className="text-[10px] text-muted-foreground font-mono tracking-wide opacity-70">
+          <span className="text-[11px] font-semibold text-muted-foreground/80 font-mono tracking-wide px-2.5 py-0.5 rounded-full glass-pill mt-0.5 border border-white/50 dark:border-white/10">
             Código: {slug}
           </span>
           {isOwner && (
             <Link 
               href={`/dashboard/${event.id}/settings`}
-              className="absolute right-4 text-muted-foreground hover:text-primary transition-colors"
+              className="absolute right-4 p-2 rounded-xl glass-pill text-muted-foreground hover:text-primary transition-all hover:scale-105 shadow-sm"
               title="Panel de Control"
             >
               <Settings className="w-5 h-5" />
@@ -46,7 +50,7 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
           )}
         </div>
       </header>
-      <main className="container mx-auto p-4">
+      <main className="container mx-auto p-4 z-10 relative">
         <GuestFlow event={event} />
       </main>
     </div>

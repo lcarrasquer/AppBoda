@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
-import { registerGuest, getPhotos, savePhotoRecord, toggleLike, deletePhoto, getEventTagsAndChallenges } from './actions'
+import imageCompression from 'browser-image-compression'
+import { registerGuest, getPhotos, savePhotoRecord, toggleLike, deletePhoto, getEventTagsAndChallenges, checkGuestKahootAttempt } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -66,18 +67,20 @@ function GuestOnboarding({ event, onComplete }: { event: any, onComplete: (id: s
   }
 
   return (
-    <div className="max-w-sm mx-auto mt-12">
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle>¡Bienvenido/a!</CardTitle>
-          <CardDescription>
+    <div className="max-w-sm mx-auto mt-12 p-4 relative">
+      <div className="absolute -top-10 -left-10 w-48 h-48 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-sky-400/20 rounded-full blur-3xl pointer-events-none" />
+      <Card className="liquid-glass liquid-glass-card rounded-2xl border-white/60 dark:border-white/10 shadow-2xl relative z-10 backdrop-blur-xl">
+        <CardHeader className="text-center space-y-2">
+          <CardTitle className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-primary via-sky-600 to-primary bg-clip-text text-transparent">¡Bienvenido/a!</CardTitle>
+          <CardDescription className="text-muted-foreground/90 font-medium">
             Para compartir fotos y mensajes con {event.bride_name} y {event.groom_name}, dinos tu nombre.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Tu nombre y apellidos</Label>
+              <Label htmlFor="name" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Tu nombre y apellidos</Label>
               <Input 
                 id="name" 
                 placeholder="Ej. Ana García" 
@@ -85,10 +88,11 @@ function GuestOnboarding({ event, onComplete }: { event: any, onComplete: (id: s
                 onChange={(e) => setName(e.target.value)}
                 required
                 autoFocus
+                className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border-white/40 dark:border-white/10 focus-visible:ring-primary/50 transition-all rounded-xl"
               />
             </div>
-            {error && <div className="text-sm text-destructive">{error}</div>}
-            <Button type="submit" className="w-full" disabled={isSubmitting || !name.trim()}>
+            {error && <div className="text-sm font-medium text-destructive bg-destructive/10 p-2 rounded-lg border border-destructive/20">{error}</div>}
+            <Button type="submit" className="w-full font-semibold shadow-lg shadow-primary/20 rounded-xl bg-gradient-to-r from-primary to-sky-600 hover:opacity-95 transition-all" disabled={isSubmitting || !name.trim()}>
               {isSubmitting ? 'Entrando...' : 'Entrar a la sala'}
             </Button>
           </form>
@@ -104,6 +108,7 @@ function GuestFeed({ event, guestId }: { event: any, guestId: string }) {
   const [uploading, setUploading] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [expandedPhoto, setExpandedPhoto] = useState<any | null>(null)
+  const [hasPlayedKahoot, setHasPlayedKahoot] = useState(false)
   
   // Tagging & Filters State
   const [activeFilter, setActiveFilter] = useState<{type: 'all' | 'tag' | 'challenge', id?: string}>({type: 'all'})
@@ -126,7 +131,15 @@ function GuestFeed({ event, guestId }: { event: any, guestId: string }) {
   useEffect(() => {
     fetchPhotos()
     fetchTagsAndChallenges()
+    checkKahootPlayed()
   }, [])
+
+  const checkKahootPlayed = async () => {
+    const res = await checkGuestKahootAttempt(event.id, guestId)
+    if (res.hasPlayed) {
+      setHasPlayedKahoot(true)
+    }
+  }
 
   const fetchPhotos = async () => {
     const res = await getPhotos(event.id)
@@ -171,13 +184,34 @@ function GuestFeed({ event, guestId }: { event: any, guestId: string }) {
     setUploading(true)
 
     try {
-      const fileExt = selectedFile.name.split('.').pop()
+      // Comprimir la imagen manteniendo alta resolución (Max 2560px, calidad 85%)
+      // Esto reduce archivos de 10MB+ a ~500KB - 1MB nítidos para descarga de los novios
+      const compressionOptions = {
+        maxSizeMB: 1.5,
+        maxWidthOrHeight: 2560,
+        useWebWorker: true,
+        initialQuality: 0.85,
+      }
+
+      let fileToUpload: File = selectedFile
+      if (selectedFile.type.startsWith('image/')) {
+        try {
+          const compressedBlob = await imageCompression(selectedFile, compressionOptions)
+          fileToUpload = new File([compressedBlob], selectedFile.name, {
+            type: compressedBlob.type || selectedFile.type,
+          })
+        } catch (compErr) {
+          console.warn('Compression fallback to original file', compErr)
+        }
+      }
+
+      const fileExt = fileToUpload.name.split('.').pop() || 'jpg'
       const fileName = `${event.id}/${crypto.randomUUID()}.${fileExt}`
 
       // Subir a Storage
       const { error: uploadError } = await supabase.storage
         .from('event-media')
-        .upload(fileName, selectedFile)
+        .upload(fileName, fileToUpload)
 
       if (uploadError) throw uploadError
 
@@ -275,27 +309,32 @@ function GuestFeed({ event, guestId }: { event: any, guestId: string }) {
       
       {/* Kahoot Banner */}
       {kahootEnabled && (
-        <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-primary flex items-center gap-2">
-              <span className="text-xl">🏆</span> ¡Juega al Kahoot!
+        <div className="liquid-glass liquid-glass-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-white/60 dark:border-white/10 shadow-xl backdrop-blur-xl">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-extrabold bg-gradient-to-r from-primary via-sky-600 to-primary bg-clip-text text-transparent flex items-center gap-2 text-base sm:text-lg">
+              <span className="text-xl shrink-0">🏆</span> ¡Juega al Kahoot!
             </h3>
-            <p className="text-sm text-muted-foreground mt-1">Responde la trivia y gana un premio.</p>
+            <p className="text-xs sm:text-sm text-muted-foreground/90 font-medium mt-0.5 leading-snug">
+              {hasPlayedKahoot ? 'Ya has participado. ¡Consulta la clasificación!' : 'Responde la trivia y gana un premio.'}
+            </p>
           </div>
-          <button className="bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 rounded-md text-sm font-medium" onClick={() => window.location.href = `/e/${event.slug}/kahoot`}>
-            Jugar
+          <button 
+            className="bg-gradient-to-r from-primary to-sky-600 hover:opacity-95 text-primary-foreground h-9 px-5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap shrink-0 self-start sm:self-center transition-all shadow-md shadow-primary/20"
+            onClick={() => window.location.href = `/e/${event.slug}/kahoot`}
+          >
+            {hasPlayedKahoot ? 'Ver resultados' : 'Jugar'}
           </button>
         </div>
       )}
 
       {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide snap-x">
+      <div className="flex gap-2.5 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide snap-x">
         <button 
           onClick={() => setActiveFilter({ type: 'all' })}
-          className={`snap-start shrink-0 px-4 py-1.5 text-sm font-medium rounded-full shadow-sm transition-colors ${
+          className={`snap-start shrink-0 px-4 py-1.5 text-xs sm:text-sm font-semibold rounded-full transition-all ${
             activeFilter.type === 'all' 
-              ? 'bg-primary text-primary-foreground' 
-              : 'bg-background border border-border text-foreground hover:bg-muted'
+              ? 'bg-gradient-to-r from-primary to-sky-600 text-primary-foreground shadow-md shadow-primary/20' 
+              : 'glass-pill border border-white/50 dark:border-white/10 text-foreground hover:bg-white/70 dark:hover:bg-slate-800/70 shadow-sm'
           }`}
         >
           Todas

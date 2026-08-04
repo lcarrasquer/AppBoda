@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { updateEventSettings } from '../actions'
 import { EventQRCode } from '@/components/admin/EventQRCode'
+import { DownloadPhotosZip } from '@/components/admin/DownloadPhotosZip'
 
 export default async function EventSettingsPage({
   params,
@@ -33,6 +34,9 @@ export default async function EventSettingsPage({
 
   return (
     <div className="space-y-6">
+      {/* Download All Photos ZIP Section */}
+      <DownloadPhotosZip eventId={event.id} eventSlug={event.slug} />
+
       {/* QR Code Section */}
       <EventQRCode
         slug={event.slug}

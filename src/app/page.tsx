@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Camera, CalendarHeart, ArrowRight } from 'lucide-react'
@@ -19,45 +20,64 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30 flex flex-col">
-      <header className="px-6 py-4 flex items-center justify-between bg-background border-b">
-        <div className="flex items-center gap-2 text-primary font-bold text-xl">
-          <CalendarHeart className="w-6 h-6" />
-          <span>AppBoda</span>
+    <div className="min-h-screen flex flex-col relative overflow-hidden">
+      {/* Background glowing orb accents */}
+      <div className="absolute top-10 left-1/2 -translate-x-1/2 w-96 h-96 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-96 h-96 bg-sky-400/20 rounded-full blur-3xl pointer-events-none" />
+
+      <header className="px-6 py-4 flex items-center justify-between glass-panel sticky top-0 z-20 backdrop-blur-xl border-b border-white/40 dark:border-white/10">
+        <div className="flex items-center gap-2.5 text-primary font-bold text-xl">
+          <div className="p-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 shadow-sm backdrop-blur-md border border-white/50">
+            <Image src="/love-logo.png" alt="Logo" width={28} height={28} className="w-7 h-7 object-contain" />
+          </div>
+          <span className="bg-gradient-to-r from-primary via-sky-600 to-primary bg-clip-text text-transparent">
+            Adriana & Lorenzo
+          </span>
         </div>
-        <Link href="/login" className={buttonVariants({ variant: "outline", size: "sm" })}>
-          Acceso Novios
+        <Link href="/login" className="inline-flex items-center">
+          <Button variant="outline" size="sm" className="glass-pill font-semibold border-white/60 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all shadow-sm">
+            Acceso Novios
+          </Button>
         </Link>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+      <main className="flex-1 flex flex-col items-center justify-center p-6 text-center z-10">
         <div className="max-w-md w-full space-y-8">
           <div className="space-y-4">
-            <div className="mx-auto w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mb-6">
-              <Camera className="w-10 h-10 text-primary" />
+            <div className="relative mx-auto w-56 h-56 md:w-64 md:h-64 rounded-3xl p-2 liquid-glass shadow-2xl border border-white/80 dark:border-white/10 mb-6 group transition-all duration-300 hover:scale-105">
+              <div className="w-full h-full rounded-2xl overflow-hidden relative">
+                <Image 
+                  src="/hero-couple.jpg" 
+                  alt="Pareja" 
+                  width={256} 
+                  height={256} 
+                  className="w-full h-full object-cover object-top"
+                  priority
+                />
+              </div>
             </div>
-            <h1 className="text-4xl font-extrabold tracking-tight">
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-slate-900 via-primary to-slate-800 dark:from-white dark:via-sky-300 dark:to-slate-200 bg-clip-text text-transparent">
               Captura cada momento
             </h1>
-            <p className="text-muted-foreground text-lg">
-              La plataforma para que tus invitados compartan las fotos de tu boda al instante, sin necesidad de registrarse.
+            <p className="text-muted-foreground text-base max-w-xs mx-auto font-medium">
+              Las fotos de tu boda compartidas por tus invitados al instante.
             </p>
           </div>
 
-          <div className="bg-card p-6 rounded-2xl shadow-sm border space-y-4 mt-8">
-            <h2 className="font-semibold text-lg">¿Tienes un código de boda?</h2>
+          <div className="liquid-glass liquid-glass-card p-6 rounded-3xl border-white/60 dark:border-white/10 shadow-2xl space-y-4 mt-8 backdrop-blur-xl">
+            <h2 className="font-bold text-lg text-foreground/90">¿Tienes un código de boda?</h2>
             <form onSubmit={handleJoin} className="flex gap-2">
               <Input 
                 placeholder="Ej. maria-juan-2026" 
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
-                className="flex-1"
+                className="flex-1 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border-white/40 dark:border-white/10 focus-visible:ring-primary/50 transition-all rounded-xl"
               />
-              <Button type="submit">
-                Entrar <ArrowRight className="w-4 h-4 ml-2" />
+              <Button type="submit" className="font-semibold shadow-lg shadow-primary/20 rounded-xl bg-gradient-to-r from-primary to-sky-600 hover:opacity-95 transition-all">
+                Entrar <ArrowRight className="w-4 h-4 ml-1.5" />
               </Button>
             </form>
-            <p className="text-sm text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground/80 font-medium">
               También puedes pedir acceso creando tu propio evento en el panel de novios.
             </p>
           </div>

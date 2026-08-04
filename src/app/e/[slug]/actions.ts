@@ -173,3 +173,24 @@ export async function deletePhoto(photoId: string, guestId: string, storagePath:
 
   return { success: true }
 }
+
+export async function checkGuestKahootAttempt(eventId: string, guestId: string) {
+  const adminClient = getAdminClient()
+  const { data: quiz } = await adminClient
+    .from('kahoot_quizzes')
+    .select('id')
+    .eq('event_id', eventId)
+    .neq('is_active', false)
+    .single()
+
+  if (!quiz) return { hasPlayed: false }
+
+  const { data: attempt } = await adminClient
+    .from('kahoot_attempts')
+    .select('id')
+    .eq('quiz_id', quiz.id)
+    .eq('guest_id', guestId)
+    .single()
+
+  return { hasPlayed: !!attempt }
+}
