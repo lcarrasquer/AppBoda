@@ -28,9 +28,14 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
     notFound()
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const isOwner = user?.id === event.owner_id
+  let isOwner = false
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    isOwner = Boolean(user && user.id === event.owner_id)
+  } catch {
+    isOwner = false
+  }
 
   // Build dynamic theme style from event's primary color
   const themeStyle = event.primary_color

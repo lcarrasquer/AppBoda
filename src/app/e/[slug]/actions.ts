@@ -12,27 +12,33 @@ function getAdminClient() {
 }
 
 export async function getEventBySlug(slug: string) {
-  const supabase = getAdminClient()
-  const { data, error } = await supabase
-    .from('events')
-    .select('id, slug, owner_id, bride_name, groom_name, event_date, location, primary_color, status')
-    .eq('slug', slug)
-    .single()
-  
-  if (error || !data) {
+  try {
+    const supabase = getAdminClient()
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, slug, owner_id, bride_name, groom_name, event_date, location, primary_color, status')
+      .eq('slug', slug)
+      .single()
+    
+    if (error || !data) {
+      console.error('getEventBySlug error:', error)
+      return null
+    }
+
+    const { data: modules } = await supabase
+      .from('event_modules')
+      .select('module_key, is_enabled')
+      .eq('event_id', data.id)
+
+    return { ...data, modules: modules || [] }
+  } catch (err) {
+    console.error('Fatal getEventBySlug error:', err)
     return null
   }
-
-  const { data: modules } = await supabase
-    .from('event_modules')
-    .select('module_key, is_enabled')
-    .eq('event_id', data.id)
-
-  return { ...data, modules: modules || [] }
 }
 
 export async function registerGuest(eventId: string, fullName: string) {
-  const supabase = await createClient()
+  const supabase = getAdminClient()
   
   const { data, error } = await supabase
     .from('guests')
@@ -52,7 +58,7 @@ export async function registerGuest(eventId: string, fullName: string) {
 }
 
 export async function getPhotos(eventId: string) {
-  const supabase = await createClient()
+  const supabase = getAdminClient()
   const { data, error } = await supabase
     .from('photos')
     .select('*, guests(full_name), photo_tag_assignments(tag_id), photo_likes(guest_id)')
@@ -64,7 +70,7 @@ export async function getPhotos(eventId: string) {
 }
 
 export async function getEventTagsAndChallenges(eventId: string) {
-  const supabase = await createClient()
+  const supabase = getAdminClient()
   
   const { data: tags } = await supabase
     .from('photo_tags')
@@ -89,7 +95,7 @@ export async function savePhotoRecord(
   challengeId?: string | null,
   tagIds?: string[]
 ) {
-  const supabase = await createClient()
+  const supabase = getAdminClient()
   const { data: photo, error } = await supabase
     .from('photos')
     .insert({
@@ -203,7 +209,7 @@ export async function checkGuestKahootAttempt(eventId: string, guestId: string) 
 }
 
 export async function getEventSchedule(eventId: string) {
-  const supabase = await createClient()
+  const supabase = getAdminClient()
   const { data } = await supabase
     .from('event_schedule')
     .select('*')
@@ -219,7 +225,7 @@ export async function addGuestbookEntry(
   content: string,
   isPrivate: boolean = false
 ) {
-  const supabase = await createClient()
+  const supabase = getAdminClient()
 
   if (!content || !content.trim()) {
     return { error: 'El mensaje no puede estar vacío' }
@@ -248,7 +254,7 @@ export async function addGuestbookEntry(
 }
 
 export async function getGuestbookEntries(eventId: string) {
-  const supabase = await createClient()
+  const supabase = getAdminClient()
   const { data } = await supabase
     .from('guestbook_entries')
     .select('*, guests(full_name)')
