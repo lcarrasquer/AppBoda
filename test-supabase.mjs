@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
+import dns from 'node:dns'
 
-dotenv.config({ path: '/Users/germancardiel/Desktop/AppBoda/.env.local' })
+dns.setServers(['8.8.8.8', '1.1.1.1'])
+
+dotenv.config({ path: '.env.local' })
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,

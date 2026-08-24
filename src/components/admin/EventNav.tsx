@@ -23,6 +23,26 @@ export function EventNav({ eventId, photosEnabled, kahootEnabled }: EventNavProp
       name: 'Módulos',
       href: `/dashboard/${eventId}/modules`,
       isActive: pathname === `/dashboard/${eventId}/modules`
+    },
+    {
+      name: 'Cronograma',
+      href: `/dashboard/${eventId}/schedule`,
+      isActive: pathname === `/dashboard/${eventId}/schedule`
+    },
+    {
+      name: 'Libro de Firmas',
+      href: `/dashboard/${eventId}/guestbook`,
+      isActive: pathname === `/dashboard/${eventId}/guestbook`
+    },
+    {
+      name: '🪑 Mesas',
+      href: `/dashboard/${eventId}/seating`,
+      isActive: pathname === `/dashboard/${eventId}/seating`
+    },
+    {
+      name: '💌 Diseñar Invitación',
+      href: `/dashboard/${eventId}/invitation`,
+      isActive: pathname === `/dashboard/${eventId}/invitation`
     }
   ]
 
@@ -43,7 +63,7 @@ export function EventNav({ eventId, photosEnabled, kahootEnabled }: EventNavProp
   }
 
   return (
-    <nav className="flex items-center space-x-4 border-b pb-2 overflow-x-auto">
+    <nav className="flex items-center space-x-4 border-b pb-2 overflow-x-auto scrollbar-hide no-scrollbar">
       {navItems.map((item) => (
         <Link
           key={item.href}

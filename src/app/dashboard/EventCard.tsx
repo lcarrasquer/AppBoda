@@ -3,10 +3,13 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { buttonVariants } from '@/components/ui/button'
-import { Calendar, MapPin, Trash2, Loader2 } from 'lucide-react'
+import { Calendar, MapPin, Trash2, Loader2, ExternalLink } from 'lucide-react'
 import { deleteEvent } from './actions'
+import { getGoogleMapsUrl } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 interface EventCardProps {
   event: {
@@ -29,10 +32,11 @@ export function EventCard({ event }: EventCardProps) {
     setDeleting(true)
     const res = await deleteEvent(event.id)
     if (res?.error) {
-      alert(res.error)
+      toast.error(res.error)
       setDeleting(false)
       setShowConfirm(false)
     } else {
+      toast.success('Evento eliminado correctamente 🗑️')
       router.refresh()
     }
   }
@@ -51,12 +55,19 @@ export function EventCard({ event }: EventCardProps) {
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`px-2 py-1 rounded-full text-xs font-medium uppercase tracking-wider ${
-              event.status === 'active' ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
-              event.status === 'draft' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
-              'bg-muted text-muted-foreground'
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide border ${
+              event.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' :
+              event.status === 'draft' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' :
+              'bg-muted text-muted-foreground border-border'
             }`}>
-              {event.status}
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                event.status === 'active' ? 'bg-emerald-500 animate-pulse' :
+                event.status === 'draft' ? 'bg-amber-500' :
+                'bg-muted-foreground'
+              }`} />
+              <span>
+                {event.status === 'active' ? 'Activo' : event.status === 'draft' ? 'Borrador' : 'Archivado'}
+              </span>
             </div>
             <button
               onClick={() => setShowConfirm(true)}
@@ -69,10 +80,24 @@ export function EventCard({ event }: EventCardProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-sm text-muted-foreground flex items-center gap-1">
-          <MapPin className="w-4 h-4" />
-          {event.location || 'Sin ubicación definida'}
-        </div>
+        {event.location ? (
+          <a
+            href={getGoogleMapsUrl(event.location)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors group/loc py-1"
+            title="Abrir ubicación en Google Maps"
+          >
+            <MapPin className="w-4 h-4 text-primary shrink-0 group-hover/loc:scale-110 transition-transform" />
+            <span className="truncate group-hover/loc:underline">{event.location}</span>
+            <ExternalLink className="w-3 h-3 opacity-60 group-hover/loc:opacity-100 shrink-0" />
+          </a>
+        ) : (
+          <div className="text-sm text-muted-foreground/70 flex items-center gap-1.5 py-1">
+            <MapPin className="w-4 h-4 opacity-40 shrink-0" />
+            <span>Sin ubicación definida</span>
+          </div>
+        )}
       </CardContent>
       <CardFooter className="flex justify-between border-t pt-4">
         <Link href={`/dashboard/${event.id}/settings`} className={buttonVariants({ variant: "outline", size: "sm" })}>
@@ -83,41 +108,16 @@ export function EventCard({ event }: EventCardProps) {
         </Link>
       </CardFooter>
 
-      {/* Confirm Delete Modal */}
-      {showConfirm && (
-        <div className="absolute inset-0 z-10 bg-background/95 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
-          <div className="rounded-full bg-destructive/10 p-3 mb-3">
-            <Trash2 className="w-6 h-6 text-destructive" />
-          </div>
-          <h3 className="font-bold text-lg mb-1">¿Eliminar este evento?</h3>
-          <p className="text-sm text-muted-foreground mb-4 max-w-[250px]">
-            Se borrarán todas las fotos, invitados y datos asociados. Esta acción no se puede deshacer.
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowConfirm(false)}
-              disabled={deleting}
-              className="px-4 py-2 text-sm font-medium rounded-md border hover:bg-muted transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="px-4 py-2 text-sm font-medium rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors flex items-center gap-2"
-            >
-              {deleting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Eliminando...
-                </>
-              ) : (
-                'Sí, eliminar'
-              )}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Visual Confirm Dialog */}
+      <ConfirmDialog 
+        isOpen={showConfirm}
+        title={`¿Eliminar la boda de ${event.bride_name} & ${event.groom_name}?`}
+        description="Se eliminarán todas las fotos, invitados, cronograma y firmas registradas. Esta acción no se puede deshacer."
+        confirmText="Eliminar boda"
+        loading={deleting}
+        onConfirm={handleDelete}
+        onClose={() => setShowConfirm(false)}
+      />
     </Card>
   )
 }

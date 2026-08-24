@@ -1,9 +1,24 @@
+import type { Metadata } from 'next'
 import { getEventBySlug } from './actions'
 import GuestFlow from './GuestFlow'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Settings } from 'lucide-react'
+import { Settings, MapPin } from 'lucide-react'
+import { getGoogleMapsUrl } from '@/lib/utils'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const event = await getEventBySlug(slug)
+
+  if (!event) return { title: 'Evento no encontrado' }
+
+  return {
+    title: `Boda de ${event.bride_name} & ${event.groom_name}`,
+    description: `Bienvenido al evento de boda de ${event.bride_name} y ${event.groom_name}. Comparte fotos, mensajes y retos en directo.`,
+  }
+}
 
 export default async function EventPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -33,12 +48,30 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
 
       <header className="sticky top-0 z-20 glass-panel backdrop-blur-xl border-b border-white/40 dark:border-white/10 shadow-sm">
         <div className="container mx-auto px-4 py-3 flex flex-col items-center justify-center relative">
-          <h1 className="font-extrabold text-lg bg-gradient-to-r from-primary via-sky-600 to-primary bg-clip-text text-transparent truncate px-12">
+          <div className="absolute left-4">
+            <ThemeToggle variant="ghost" size="icon" className="glass-pill h-9 w-9 text-muted-foreground hover:text-foreground shadow-sm" />
+          </div>
+
+          <h1 className="font-extrabold text-lg bg-gradient-to-r from-primary via-sky-600 to-primary bg-clip-text text-transparent truncate px-14 text-center">
             {event.bride_name} & {event.groom_name}
           </h1>
-          <span className="text-[11px] font-semibold text-muted-foreground/80 font-mono tracking-wide px-2.5 py-0.5 rounded-full glass-pill mt-0.5 border border-white/50 dark:border-white/10">
-            Código: {slug}
-          </span>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap justify-center">
+            <span className="text-[11px] font-semibold text-muted-foreground/80 font-mono tracking-wide px-2.5 py-0.5 rounded-full glass-pill border border-white/50 dark:border-white/10">
+              Código: {slug}
+            </span>
+            {event.location && (
+              <a
+                href={getGoogleMapsUrl(event.location)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 rounded-full glass-pill border border-emerald-500/30 hover:bg-emerald-500/10 transition-all max-w-[200px] truncate"
+                title={`Ver "${event.location}" en Google Maps`}
+              >
+                <MapPin className="w-3 h-3 shrink-0" />
+                <span className="truncate">{event.location}</span>
+              </a>
+            )}
+          </div>
           {isOwner && (
             <Link 
               href={`/dashboard/${event.id}/settings`}

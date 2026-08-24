@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { revalidatePath } from 'next/cache'
 
 function getAdminClient() {
   return createSupabaseClient(
@@ -14,7 +15,7 @@ export async function getEventBySlug(slug: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('events')
-    .select('id, slug, owner_id, bride_name, groom_name, event_date, primary_color, status')
+    .select('id, slug, owner_id, bride_name, groom_name, event_date, location, primary_color, status')
     .eq('slug', slug)
     .single()
   
@@ -54,7 +55,7 @@ export async function getPhotos(eventId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('photos')
-    .select('*, guests(full_name), photo_tag_assignments(tag_id)')
+    .select('*, guests(full_name), photo_tag_assignments(tag_id), photo_likes(guest_id)')
     .eq('event_id', eventId)
     .eq('is_hidden', false)
     .order('created_at', { ascending: false })
@@ -127,26 +128,32 @@ export async function toggleLike(photoId: string, guestId: string) {
     .select('id')
     .eq('photo_id', photoId)
     .eq('guest_id', guestId)
-    .single()
+    .maybeSingle()
 
   if (existingLike) {
     // Remove like
     await adminClient.from('photo_likes').delete().eq('id', existingLike.id)
-    // Decrement count
-    const { data: photo } = await adminClient.from('photos').select('likes_count').eq('id', photoId).single()
-    if (photo) {
-      await adminClient.from('photos').update({ likes_count: Math.max(0, photo.likes_count - 1) }).eq('id', photoId)
-    }
-    return { liked: false }
+    // Recalculate exact count
+    const { count } = await adminClient
+      .from('photo_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('photo_id', photoId)
+    
+    const newCount = count ?? 0
+    await adminClient.from('photos').update({ likes_count: newCount }).eq('id', photoId)
+    return { liked: false, likesCount: newCount }
   } else {
     // Add like
     await adminClient.from('photo_likes').insert({ photo_id: photoId, guest_id: guestId })
-    // Increment count
-    const { data: photo } = await adminClient.from('photos').select('likes_count').eq('id', photoId).single()
-    if (photo) {
-      await adminClient.from('photos').update({ likes_count: photo.likes_count + 1 }).eq('id', photoId)
-    }
-    return { liked: true }
+    // Recalculate exact count
+    const { count } = await adminClient
+      .from('photo_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('photo_id', photoId)
+    
+    const newCount = count ?? 1
+    await adminClient.from('photos').update({ likes_count: newCount }).eq('id', photoId)
+    return { liked: true, likesCount: newCount }
   }
 }
 
@@ -193,4 +200,66 @@ export async function checkGuestKahootAttempt(eventId: string, guestId: string) 
     .single()
 
   return { hasPlayed: !!attempt }
+}
+
+export async function getEventSchedule(eventId: string) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('event_schedule')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('scheduled_time', { ascending: true })
+
+  return { schedule: data || [] }
+}
+
+export async function addGuestbookEntry(
+  eventId: string,
+  guestId: string,
+  content: string,
+  isPrivate: boolean = false
+) {
+  const supabase = await createClient()
+
+  if (!content || !content.trim()) {
+    return { error: 'El mensaje no puede estar vacío' }
+  }
+
+  const { data, error } = await supabase
+    .from('guestbook_entries')
+    .insert({
+      event_id: eventId,
+      guest_id: guestId,
+      type: 'text',
+      content: content.trim(),
+      is_private: isPrivate
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error adding guestbook entry:', error)
+    return { error: 'No se pudo publicar la dedicatoria' }
+  }
+
+  revalidatePath(`/dashboard/${eventId}/guestbook`)
+
+  return { entry: data }
+}
+
+export async function getGuestbookEntries(eventId: string) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('guestbook_entries')
+    .select('*, guests(full_name)')
+    .eq('event_id', eventId)
+    .eq('is_private', false)
+    .order('created_at', { ascending: false })
+
+  return { entries: data || [] }
+}
+
+export async function getEventSeatingPlan(eventId: string) {
+  const { getSeatingPlan } = await import('@/app/dashboard/[eventId]/seating/actions')
+  return await getSeatingPlan(eventId)
 }

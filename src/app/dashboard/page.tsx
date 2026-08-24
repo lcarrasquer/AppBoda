@@ -1,9 +1,14 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PlusCircle } from 'lucide-react'
 import Link from 'next/link'
 import { EventCard } from './EventCard'
+
+export const metadata: Metadata = {
+  title: 'Mis Eventos',
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -27,7 +32,7 @@ export default async function DashboardPage() {
             Gestiona tus bodas y eventos desde aquí.
           </p>
         </div>
-        <Link href="/dashboard/new" className={buttonVariants({ variant: "default", className: "gap-2" })}>
+        <Link href="/dashboard/new" className={buttonVariants({ variant: "default", className: "gap-2 font-bold" })}>
           <PlusCircle className="w-4 h-4" />
           Crear evento
         </Link>

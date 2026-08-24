@@ -1,11 +1,16 @@
 import React from 'react'
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { login, signup } from './actions'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { LoginForm } from './LoginForm'
+import { AppLogo } from '@/components/common/AppLogo'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
+
+export const metadata: Metadata = {
+  title: 'Iniciar Sesión',
+}
 
 export default async function LoginPage({
   searchParams,
@@ -29,8 +34,15 @@ export default async function LoginPage({
         </Link>
       </div>
 
+      <div className="absolute top-4 right-4 md:top-8 md:right-8 z-10">
+        <ThemeToggle variant="ghost" size="icon" className="glass-pill shadow-sm text-foreground hover:bg-white/80 dark:hover:bg-slate-800/80" />
+      </div>
+
       <Card className="w-full max-w-sm liquid-glass liquid-glass-card rounded-2xl border-white/60 dark:border-white/10 shadow-2xl relative z-10 backdrop-blur-xl">
-        <CardHeader className="space-y-4 pb-4">
+        <CardHeader className="space-y-4 pb-4 text-center">
+          <div className="flex justify-center mb-1">
+            <AppLogo size="lg" showText={false} href="/" />
+          </div>
           <div className="space-y-1 text-center">
             <CardTitle className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary via-sky-600 to-primary bg-clip-text text-transparent">
               Bienvenido
@@ -42,49 +54,10 @@ export default async function LoginPage({
         </CardHeader>
 
         <CardContent>
-          <form className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Correo electrónico</Label>
-              <Input 
-                id="email" 
-                name="email" 
-                type="email" 
-                placeholder="hola@ejemplo.com" 
-                required 
-                className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border-white/40 dark:border-white/10 focus-visible:ring-primary/50 transition-all rounded-xl"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password" className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Contraseña</Label>
-              <Input 
-                id="password" 
-                name="password" 
-                type="password" 
-                required 
-                className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border-white/40 dark:border-white/10 focus-visible:ring-primary/50 transition-all rounded-xl"
-              />
-            </div>
-
-            {params?.error && (
-              <div className="text-sm font-medium text-destructive mt-2 text-center bg-destructive/10 p-2 rounded-lg border border-destructive/20">
-                {params.error}
-              </div>
-            )}
-
-            <div className="flex flex-col space-y-3 pt-3">
-              <Button formAction={login} type="submit" className="w-full font-semibold shadow-lg shadow-primary/20 rounded-xl bg-gradient-to-r from-primary to-sky-600 hover:opacity-95 transition-all">
-                Iniciar sesión
-              </Button>
-              <div className="relative my-2 text-center text-xs text-muted-foreground font-medium uppercase after:absolute after:inset-x-0 after:top-1/2 after:-z-10 after:border-t after:border-white/20">
-                <span className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-md px-3 py-0.5 rounded-full border border-white/30 dark:border-white/10">¿No tienes cuenta?</span>
-              </div>
-              <Button formAction={signup} type="submit" variant="outline" className="w-full font-semibold rounded-xl bg-white/40 dark:bg-slate-800/40 backdrop-blur-md border-white/60 dark:border-white/10 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-all">
-                Crear cuenta nueva
-              </Button>
-            </div>
-          </form>
+          <LoginForm initialError={params?.error} />
         </CardContent>
       </Card>
     </div>
   )
 }
+

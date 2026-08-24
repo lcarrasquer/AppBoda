@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Download, Loader2, Images } from 'lucide-react'
+import { toast } from 'sonner'
 
 export function DownloadPhotosZip({ eventId, eventSlug }: { eventId: string; eventSlug: string }) {
   const [downloading, setDownloading] = useState(false)
@@ -28,7 +29,7 @@ export function DownloadPhotosZip({ eventId, eventSlug }: { eventId: string; eve
       if (error) throw error
 
       if (!photos || photos.length === 0) {
-        alert('Aún no hay fotos en esta sala para descargar.')
+        toast.info('Aún no hay fotos en esta sala para descargar.')
         setDownloading(false)
         setProgress('')
         return
@@ -69,15 +70,15 @@ export function DownloadPhotosZip({ eventId, eventSlug }: { eventId: string; eve
       const content = await zip.generateAsync({ type: 'blob' })
 
       saveAs(content, `fotos-boda-${eventSlug}.zip`)
-      setProgress('¡Descarga completada!')
+      toast.success('¡Fotos descargadas en archivo ZIP con éxito! 📦')
     } catch (err) {
       console.error('Error al descargar ZIP', err)
-      alert('Ocurrió un error al intentar descargar el archivo ZIP con las fotos.')
+      toast.error('Ocurrió un error al intentar descargar las fotos en ZIP.')
     } finally {
       setTimeout(() => {
         setDownloading(false)
         setProgress('')
-      }, 1500)
+      }, 1000)
     }
   }
 

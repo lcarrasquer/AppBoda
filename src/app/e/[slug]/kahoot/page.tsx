@@ -1,8 +1,20 @@
+import type { Metadata } from 'next'
 import { getEventBySlug } from '../actions'
 import { notFound } from 'next/navigation'
 import KahootGame from './KahootGame'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const event = await getEventBySlug(slug)
+
+  if (!event) return { title: 'Juego de Trivia' }
+
+  return {
+    title: `Trivia / Kahoot - Boda de ${event.bride_name} & ${event.groom_name}`,
+  }
+}
 
 export default async function KahootPage({
   params,

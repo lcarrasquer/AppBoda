@@ -293,3 +293,101 @@ export async function addKahootAnswer(formData: FormData) {
 
   revalidatePath(`/dashboard/${eventId}/kahoot-config`)
 }
+
+export async function createScheduleItem(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const adminClient = getAdminClient()
+
+  const eventId = formData.get('event_id') as string
+  const title = formData.get('title') as string
+  const scheduledTime = formData.get('scheduled_time') as string
+  const location = formData.get('location') as string
+  const rawDescription = formData.get('description') as string
+  const icon = formData.get('icon') as string
+  const sortOrder = parseInt(formData.get('sort_order') as string || '0', 10)
+
+  if (!eventId || !title || !scheduledTime) {
+    throw new Error('Faltan campos obligatorios')
+  }
+
+  const { formatScheduleDescription } = await import('@/lib/utils')
+  const formattedDesc = formatScheduleDescription(location, rawDescription)
+
+  const { error } = await adminClient.from('event_schedule').insert({
+    event_id: eventId,
+    title,
+    scheduled_time: scheduledTime,
+    description: formattedDesc || null,
+    icon: icon || '💍',
+    sort_order: sortOrder
+  })
+
+  if (error) {
+    console.error('Error creating schedule item:', error)
+    throw new Error('Error al añadir hito al cronograma')
+  }
+
+  revalidatePath(`/dashboard/${eventId}/schedule`)
+}
+
+export async function deleteScheduleItem(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const adminClient = getAdminClient()
+
+  const eventId = formData.get('event_id') as string
+  const itemId = formData.get('item_id') as string
+
+  const { error } = await adminClient.from('event_schedule').delete().eq('id', itemId)
+
+  if (error) {
+    console.error('Error deleting schedule item:', error)
+    throw new Error('Error al eliminar hito')
+  }
+
+  revalidatePath(`/dashboard/${eventId}/schedule`)
+}
+
+export async function deleteGuestbookEntry(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const eventId = formData.get('event_id') as string
+  const entryId = formData.get('entry_id') as string
+
+  if (!eventId || !entryId) {
+    throw new Error('Faltan parámetros')
+  }
+
+  // Verificamos que el usuario actual sea el dueño del evento
+  const { data: event } = await supabase
+    .from('events')
+    .select('owner_id')
+    .eq('id', eventId)
+    .single()
+
+  if (!event || event.owner_id !== user.id) {
+    throw new Error('No tienes permisos para realizar esta acción')
+  }
+
+  const adminClient = getAdminClient()
+  const { error } = await adminClient.from('guestbook_entries').delete().eq('id', entryId)
+
+  if (error) {
+    console.error('Error deleting guestbook entry:', error)
+    // Fallback: borrar con cliente autenticado
+    const { error: userErr } = await supabase.from('guestbook_entries').delete().eq('id', entryId)
+    if (userErr) {
+      console.error('Fallback delete error:', userErr)
+      throw new Error('Error al eliminar mensaje')
+    }
+  }
+
+  revalidatePath(`/dashboard/${eventId}/guestbook`)
+}

@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
+import { AppLogo } from '@/components/common/AppLogo'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Camera, CalendarHeart, ArrowRight } from 'lucide-react'
@@ -11,6 +13,10 @@ import { Camera, CalendarHeart, ArrowRight } from 'lucide-react'
 export default function HomePage() {
   const router = useRouter()
   const [slug, setSlug] = useState('')
+
+  useEffect(() => {
+    document.title = 'AppBoda | Tu Evento de Boda Interactivo'
+  }, [])
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,19 +32,15 @@ export default function HomePage() {
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-sky-400/20 rounded-full blur-3xl pointer-events-none" />
 
       <header className="px-6 py-4 flex items-center justify-between glass-panel sticky top-0 z-20 backdrop-blur-xl border-b border-white/40 dark:border-white/10">
-        <div className="flex items-center gap-2.5 text-primary font-bold text-xl">
-          <div className="p-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 shadow-sm backdrop-blur-md border border-white/50">
-            <Image src="/love-logo.png" alt="Logo" width={28} height={28} className="w-7 h-7 object-contain" />
-          </div>
-          <span className="bg-gradient-to-r from-primary via-sky-600 to-primary bg-clip-text text-transparent">
-            Adriana & Lorenzo
-          </span>
+        <AppLogo size="md" href="/" />
+        <div className="flex items-center gap-3">
+          <ThemeToggle variant="outline" className="border-white/60 bg-white/40 dark:bg-slate-800/40 dark:border-white/10 shadow-sm" />
+          <Link href="/login" className="inline-flex items-center">
+            <Button variant="outline" size="sm" className="glass-pill font-semibold border-white/60 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all shadow-sm">
+              Acceso Novios
+            </Button>
+          </Link>
         </div>
-        <Link href="/login" className="inline-flex items-center">
-          <Button variant="outline" size="sm" className="glass-pill font-semibold border-white/60 hover:bg-white/80 dark:hover:bg-slate-800/80 transition-all shadow-sm">
-            Acceso Novios
-          </Button>
-        </Link>
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center p-6 text-center z-10">

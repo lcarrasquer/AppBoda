@@ -13,6 +13,7 @@ export async function createEvent(formData: FormData) {
   const brideName = formData.get('bride_name') as string
   const groomName = formData.get('groom_name') as string
   const eventDate = formData.get('event_date') as string
+  const location = formData.get('location') as string
 
   if (!brideName || !groomName || !eventDate) {
     return { error: 'Faltan campos obligatorios' }
@@ -30,6 +31,7 @@ export async function createEvent(formData: FormData) {
       bride_name: brideName,
       groom_name: groomName,
       event_date: eventDate,
+      location: location?.trim() || null,
       slug: slug,
       status: 'draft'
     })

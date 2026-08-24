@@ -137,6 +137,7 @@ create table guestbook_entries (
   content text,
   audio_path text,
   duration_seconds int,
+  is_private boolean default false,
   created_at timestamptz default now()
 );
 
@@ -147,6 +148,8 @@ create table event_schedule (
   id uuid primary key default uuid_generate_v4(),
   event_id uuid references events(id) on delete cascade not null,
   title text not null,
+  description text,
+  icon text,
   scheduled_time time not null,
   sort_order int default 0
 );
@@ -281,7 +284,8 @@ create policy "public_read_comment" on photo_comments for select using (true);
 
 -- Políticas guestbook
 create policy "public_insert_guestbook" on guestbook_entries for insert with check (true);
-create policy "owner_read_guestbook" on guestbook_entries for select using (
+create policy "public_read_guestbook" on guestbook_entries for select using (is_private = false);
+create policy "owner_manage_guestbook" on guestbook_entries for all using (
   exists (select 1 from events e where e.id = event_id and e.owner_id = auth.uid())
 );
 
@@ -345,3 +349,46 @@ create policy "Public Read"
 create policy "Owner Delete"
   on storage.objects for delete
   using (bucket_id = 'event-media');
+
+-- ============================================
+-- SEATING PLAN (MESAS E INVITADOS)
+-- ============================================
+create table seating_tables (
+  id uuid primary key default uuid_generate_v4(),
+  event_id uuid references events(id) on delete cascade not null,
+  table_number text not null,
+  table_name text,
+  capacity int default 10,
+  notes text,
+  position_order int default 0,
+  created_at timestamptz default now()
+);
+
+create table seating_assignments (
+  id uuid primary key default uuid_generate_v4(),
+  event_id uuid references events(id) on delete cascade not null,
+  table_id uuid references seating_tables(id) on delete cascade not null,
+  guest_name text not null,
+  companion_names text,
+  dietary_requirements text,
+  notes text,
+  created_at timestamptz default now()
+);
+
+alter table seating_tables enable row level security;
+alter table seating_assignments enable row level security;
+
+create policy "owner_manage_seating_tables" on seating_tables for all using (
+  exists (select 1 from events e where e.id = event_id and e.owner_id = auth.uid())
+);
+create policy "public_read_seating_tables" on seating_tables for select using (
+  exists (select 1 from events e where e.id = event_id and e.status = 'active')
+);
+
+create policy "owner_manage_seating_assignments" on seating_assignments for all using (
+  exists (select 1 from events e where e.id = event_id and e.owner_id = auth.uid())
+);
+create policy "public_read_seating_assignments" on seating_assignments for select using (
+  exists (select 1 from events e where e.id = event_id and e.status = 'active')
+);
+

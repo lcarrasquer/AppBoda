@@ -1,9 +1,25 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { EventNav } from '@/components/admin/EventNav'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { buttonVariants } from '@/components/ui/button'
+
+export async function generateMetadata({ params }: { params: Promise<{ eventId: string }> }): Promise<Metadata> {
+  const { eventId } = await params
+  const supabase = await createClient()
+  const { data: event } = await supabase
+    .from('events')
+    .select('bride_name, groom_name')
+    .eq('id', eventId)
+    .single()
+
+  if (!event) return { title: 'Panel de Evento' }
+  return {
+    title: `Boda de ${event.bride_name} y ${event.groom_name}`,
+  }
+}
 
 export default async function EventLayout({
   children,

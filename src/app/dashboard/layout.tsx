@@ -1,4 +1,5 @@
-import Image from 'next/image'
+import { AppLogo } from '@/components/common/AppLogo'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { logout } from '../login/actions'
@@ -20,18 +21,16 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/20">
-      <header className="sticky top-0 z-10 bg-background border-b border-border">
+      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center space-x-2 text-primary font-bold text-xl">
-            <Image src="/love-logo.png" alt="Logo" width={32} height={32} className="w-8 h-8 object-contain" />
-            <span>Adriana & Lorenzo</span>
-          </Link>
-          <div className="flex items-center space-x-4">
+          <AppLogo size="sm" href="/dashboard" />
+          <div className="flex items-center space-x-2 md:space-x-3">
+            <ThemeToggle />
             <span className="text-sm text-muted-foreground hidden md:inline-block">
               {user.email}
             </span>
             <form action={logout}>
-              <Button type="submit" variant="ghost" size="icon" title="Cerrar sesión">
+              <Button type="submit" variant="ghost" size="icon" title="Cerrar sesión" className="rounded-xl cursor-pointer">
                 <LogOut className="w-5 h-5" />
               </Button>
             </form>
