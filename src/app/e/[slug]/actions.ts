@@ -12,7 +12,7 @@ function getAdminClient() {
 }
 
 export async function getEventBySlug(slug: string) {
-  const supabase = await createClient()
+  const supabase = getAdminClient()
   const { data, error } = await supabase
     .from('events')
     .select('id, slug, owner_id, bride_name, groom_name, event_date, location, primary_color, status')
