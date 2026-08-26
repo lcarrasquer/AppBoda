@@ -1,10 +1,17 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { SeatingTable, SeatingAssignment } from '@/lib/seating/types'
 import fs from 'fs/promises'
 import path from 'path'
+
+function getAdminClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 // Helper for resilient fallback file-based storage if tables aren't yet in Supabase schema cache
 const DATA_DIR = path.join(process.cwd(), '.data', 'seating')
@@ -40,7 +47,7 @@ export async function getSeatingPlan(eventId: string): Promise<{
   error?: string
 }> {
   try {
-    const supabase = await createClient()
+    const supabase = getAdminClient()
 
     // Try Supabase first
     const { data: tablesData, error: tablesError } = await supabase
@@ -48,6 +55,7 @@ export async function getSeatingPlan(eventId: string): Promise<{
       .select('*')
       .eq('event_id', eventId)
       .order('position_order', { ascending: true })
+
 
     if (tablesError) {
       // Fallback to local storage
@@ -98,7 +106,7 @@ export async function createOrUpdateTable(
   }
 ) {
   try {
-    const supabase = await createClient()
+    const supabase = getAdminClient()
 
     const payload = {
       event_id: eventId,
@@ -161,7 +169,7 @@ export async function updateTablePositions(
   positions: { id: string; pos_x: number; pos_y: number; shape?: 'round' | 'rectangle'; rotation?: number }[]
 ) {
   try {
-    const supabase = await createClient()
+    const supabase = getAdminClient()
 
     // Try Supabase updates
     for (const p of positions) {
@@ -204,7 +212,7 @@ export async function updateTablePositions(
 // 3. Delete a Table
 export async function deleteTable(eventId: string, tableId: string) {
   try {
-    const supabase = await createClient()
+    const supabase = getAdminClient()
 
     const { error } = await supabase
       .from('seating_tables')
@@ -240,7 +248,7 @@ export async function addOrUpdateGuest(
   }
 ) {
   try {
-    const supabase = await createClient()
+    const supabase = getAdminClient()
 
     const payload = {
       event_id: eventId,
@@ -291,7 +299,7 @@ export async function addOrUpdateGuest(
 // 5. Delete a Seated Guest
 export async function deleteGuest(eventId: string, assignmentId: string) {
   try {
-    const supabase = await createClient()
+    const supabase = getAdminClient()
 
     const { error } = await supabase
       .from('seating_assignments')
