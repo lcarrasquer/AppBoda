@@ -168,9 +168,20 @@ export function FloorplanCanvas({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [saving, setSaving] = useState(false)
   const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [panStart, setPanStart] = useState<{ clientX: number; clientY: number; panX: number; panY: number } | null>(null)
+  const [pinchDist, setPinchDist] = useState<{ startDist: number; startZoom: number } | null>(null)
   const [showAddElementMenu, setShowAddElementMenu] = useState(false)
 
   const svgRef = useRef<SVGSVGElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Calculate dynamic ViewBox dimensions based on zoom & pan
+  const viewBoxWidth = CANVAS_WIDTH / zoom
+  const viewBoxHeight = CANVAS_HEIGHT / zoom
+  const viewBoxX = (CANVAS_WIDTH - viewBoxWidth) / 2 + pan.x
+  const viewBoxY = (CANVAS_HEIGHT - viewBoxHeight) / 2 + pan.y
 
   // Load landmarks from localStorage if available
   useEffect(() => {
@@ -215,20 +226,74 @@ export function FloorplanCanvas({
     if (highlightTableId) {
       setSelectedTableId(highlightTableId)
       setSelectedLandmarkId(null)
+      const hlTable = updated.find(t => t.id === highlightTableId)
+      if (hlTable && hlTable.pos_x && hlTable.pos_y) {
+        // Center view on highlighted table with a nice 1.3x zoom
+        setZoom(1.3)
+        const targetW = CANVAS_WIDTH / 1.3
+        const targetH = CANVAS_HEIGHT / 1.3
+        setPan({
+          x: hlTable.pos_x - CANVAS_WIDTH / 2,
+          y: hlTable.pos_y - CANVAS_HEIGHT / 2
+        })
+      }
     }
   }, [initialTables, highlightTableId])
 
-  // Get SVG coordinate from Mouse/Touch Event
+  // Get SVG coordinate from Mouse/Touch Event (supporting exact zoom & pan transformation)
   const getSVGCoords = useCallback((clientX: number, clientY: number) => {
     if (!svgRef.current) return { x: 0, y: 0 }
-    const rect = svgRef.current.getBoundingClientRect()
-    const scaleX = CANVAS_WIDTH / rect.width
-    const scaleY = CANVAS_HEIGHT / rect.height
-    return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY
+    const pt = svgRef.current.createSVGPoint()
+    pt.x = clientX
+    pt.y = clientY
+    const ctm = svgRef.current.getScreenCTM()
+    if (ctm) {
+      const transformed = pt.matrixTransform(ctm.inverse())
+      return { x: transformed.x, y: transformed.y }
     }
-  }, [])
+    const rect = svgRef.current.getBoundingClientRect()
+    return {
+      x: viewBoxX + ((clientX - rect.left) / rect.width) * viewBoxWidth,
+      y: viewBoxY + ((clientY - rect.top) / rect.height) * viewBoxHeight
+    }
+  }, [viewBoxX, viewBoxY, viewBoxWidth, viewBoxHeight])
+
+  // Canvas background Pan handlers (drag to move view)
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0 || draggingItem || resizingLandmark) return
+    setIsPanning(true)
+    setPanStart({
+      clientX: e.clientX,
+      clientY: e.clientY,
+      panX: pan.x,
+      panY: pan.y
+    })
+  }
+
+  const handleCanvasTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      // Pinch to Zoom start
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      setPinchDist({ startDist: dist, startZoom: zoom })
+      setIsPanning(false)
+      setPanStart(null)
+      return
+    }
+
+    if (e.touches.length === 1 && !draggingItem && !resizingLandmark) {
+      const touch = e.touches[0]
+      setIsPanning(true)
+      setPanStart({
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        panX: pan.x,
+        panY: pan.y
+      })
+    }
+  }
 
   // 1. Table Drag Handlers
   const handleTableMouseDown = (e: React.MouseEvent, table: SeatingTable) => {
@@ -452,6 +517,80 @@ export function FloorplanCanvas({
       window.removeEventListener('touchend', handleWindowTouchEnd)
     }
   }, [draggingItem, resizingLandmark, dragOffset, getSVGCoords, readOnly, landmarks])
+
+  // Global listeners for Panning & Pinch-to-Zoom
+  useEffect(() => {
+    if (!isPanning && !pinchDist) return
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      if (isPanning && panStart && svgRef.current) {
+        const rect = svgRef.current.getBoundingClientRect()
+        const deltaX = (e.clientX - panStart.clientX) * (viewBoxWidth / rect.width)
+        const deltaY = (e.clientY - panStart.clientY) * (viewBoxHeight / rect.height)
+        setPan({
+          x: panStart.panX - deltaX,
+          y: panStart.panY - deltaY
+        })
+      }
+    }
+
+    const handleWindowMouseUp = () => {
+      setIsPanning(false)
+      setPanStart(null)
+    }
+
+    const handleWindowTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchDist) {
+        // Pinch to Zoom
+        const currentDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        )
+        const scaleFactor = currentDist / pinchDist.startDist
+        const nextZoom = Math.min(2.8, Math.max(0.6, +(pinchDist.startZoom * scaleFactor).toFixed(2)))
+        setZoom(nextZoom)
+        return
+      }
+
+      if (isPanning && panStart && e.touches.length === 1 && svgRef.current) {
+        const touch = e.touches[0]
+        const rect = svgRef.current.getBoundingClientRect()
+        const deltaX = (touch.clientX - panStart.clientX) * (viewBoxWidth / rect.width)
+        const deltaY = (touch.clientY - panStart.clientY) * (viewBoxHeight / rect.height)
+        setPan({
+          x: panStart.panX - deltaX,
+          y: panStart.panY - deltaY
+        })
+      }
+    }
+
+    const handleWindowTouchEnd = () => {
+      setIsPanning(false)
+      setPanStart(null)
+      setPinchDist(null)
+    }
+
+    window.addEventListener('mousemove', handleWindowMouseMove)
+    window.addEventListener('mouseup', handleWindowMouseUp)
+    window.addEventListener('touchmove', handleWindowTouchMove, { passive: false })
+    window.addEventListener('touchend', handleWindowTouchEnd)
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove)
+      window.removeEventListener('mouseup', handleWindowMouseUp)
+      window.removeEventListener('touchmove', handleWindowTouchMove)
+      window.removeEventListener('touchend', handleWindowTouchEnd)
+    }
+  }, [isPanning, panStart, pinchDist, viewBoxWidth, viewBoxHeight])
+
+  // Wheel zoom handler
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || Math.abs(e.deltaY) > 50) {
+      e.preventDefault()
+      const factor = e.deltaY < 0 ? 1.15 : 0.85
+      setZoom(prev => Math.min(2.8, Math.max(0.6, +(prev * factor).toFixed(2))))
+    }
+  }
 
   // Save All Positions
   const handleSavePositions = async () => {
@@ -782,16 +921,72 @@ export function FloorplanCanvas({
       )}
 
       {/* Main Floorplan Canvas Container */}
-      <div className="relative rounded-3xl border-2 border-border/80 overflow-hidden shadow-xl bg-slate-950/5 dark:bg-slate-950/40 backdrop-blur-md">
-        
-        <div 
-          className="relative w-full overflow-auto transition-transform duration-100 ease-out"
-          style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
-        >
+      <div 
+        ref={containerRef}
+        className="relative rounded-3xl border-2 border-border/80 overflow-hidden shadow-xl bg-slate-950/5 dark:bg-slate-950/40 backdrop-blur-md"
+        onWheel={handleWheel}
+      >
+        {/* Floating Zoom & Pan Controls (Always visible in guest and admin view) */}
+        <div className="absolute right-3.5 bottom-3.5 z-30 flex items-center gap-1 p-1 rounded-2xl bg-card/90 backdrop-blur-2xl border border-border/80 shadow-2xl shadow-black/20 animate-in fade-in zoom-in-95 duration-200">
+          <button
+            type="button"
+            onClick={() => setZoom(prev => Math.min(2.8, +(prev + 0.25).toFixed(2)))}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-foreground hover:bg-muted active:scale-90 transition-all cursor-pointer shadow-xs"
+            title="Acercar zoom (+)"
+            aria-label="Acercar zoom"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
+            className="px-2.5 h-8 rounded-xl flex items-center justify-center font-mono font-black text-xs text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer"
+            title="Hacer clic para reiniciar al 100%"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setZoom(prev => Math.max(0.6, +(prev - 0.25).toFixed(2)))}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-foreground hover:bg-muted active:scale-90 transition-all cursor-pointer shadow-xs"
+            title="Alejar zoom (-)"
+            aria-label="Alejar zoom"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </button>
+
+          <div className="w-[1px] h-4 bg-border/80 mx-0.5" />
+
+          <button
+            type="button"
+            onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted active:scale-90 transition-all cursor-pointer"
+            title="Centrar plano completo"
+            aria-label="Centrar plano"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Zoom & Navigation Hint for Mobile / Desktop */}
+        {zoom > 1 && (
+          <div className="absolute left-3.5 bottom-3.5 z-20 pointer-events-none hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/85 backdrop-blur-md border border-border text-[11px] font-bold text-muted-foreground shadow-md animate-in fade-in duration-200">
+            <Move className="w-3 h-3 text-primary" />
+            <span>Arrastra para desplazarte por la sala</span>
+          </div>
+        )}
+
+        <div className="relative w-full overflow-hidden">
           <svg
             ref={svgRef}
-            viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
-            className="w-full max-w-full h-auto drop-shadow-sm cursor-crosshair touch-none select-none"
+            viewBox={`${viewBoxX} ${viewBoxY} ${viewBoxWidth} ${viewBoxHeight}`}
+            className={`w-full max-w-full h-auto drop-shadow-sm touch-none select-none transition-[viewBox] duration-75 ${
+              isPanning ? 'cursor-grabbing' : zoom > 1 ? 'cursor-grab' : readOnly ? 'cursor-default' : 'cursor-crosshair'
+            }`}
+            onMouseDown={handleCanvasMouseDown}
+            onTouchStart={handleCanvasTouchStart}
             onClick={() => {
               setSelectedTableId(null)
               setSelectedLandmarkId(null)
