@@ -94,32 +94,50 @@ export function SeatingFinderModal({
     return <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
   }
 
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-card text-card-foreground border border-white/40 dark:border-white/10 rounded-3xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-        
+    <div 
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200 cursor-pointer"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-card text-card-foreground border border-white/40 dark:border-white/10 rounded-3xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 cursor-default"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-border/80 flex items-center justify-between gap-3 bg-muted/40 shrink-0">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-xl shadow-inner shrink-0">
               🪑
             </div>
-            <div>
-              <h2 className="font-bold text-lg leading-tight text-foreground flex items-center gap-1.5">
+            <div className="min-w-0">
+              <h2 className="font-bold text-base sm:text-lg leading-tight text-foreground flex items-center gap-1.5 truncate">
                 <span>Buscador de Mesas</span>
               </h2>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground truncate">
                 Encuentra tu mesa y descubre con quién te sientas
               </p>
             </div>
           </div>
 
+          {/* Large touch-friendly close button (44px min touch target) */}
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
-            aria-label="Cerrar modal"
+            className="w-11 h-11 sm:w-10 sm:h-10 rounded-2xl bg-muted/90 hover:bg-muted active:scale-90 text-foreground flex items-center justify-center border border-border shadow-xs transition-all cursor-pointer shrink-0"
+            aria-label="Cerrar ventana de mesas"
+            title="Cerrar (Esc)"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 text-foreground" />
           </button>
         </div>
 
@@ -463,12 +481,17 @@ export function SeatingFinderModal({
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-muted/40 border-t border-border flex items-center justify-between text-xs text-muted-foreground shrink-0">
-          <span className="flex items-center gap-1">
-            <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+        <div className="p-3.5 sm:p-4 bg-muted/40 border-t border-border flex items-center justify-between text-xs text-muted-foreground shrink-0">
+          <span className="flex items-center gap-1.5 font-medium">
+            <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
             <span>¡Que disfrutéis del banquete!</span>
           </span>
-          <Button variant="ghost" size="sm" onClick={onClose} className="rounded-xl h-8 px-3 font-semibold">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={onClose} 
+            className="rounded-2xl h-10 px-5 font-bold text-xs sm:text-sm bg-background hover:bg-muted active:scale-95 transition-all cursor-pointer shadow-xs border-border/80"
+          >
             Cerrar
           </Button>
         </div>
