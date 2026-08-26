@@ -3,42 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { SeatingTable, SeatingAssignment } from '@/lib/seating/types'
-import fs from 'fs/promises'
-import path from 'path'
 
 function getAdminClient() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
-}
-
-// Helper for resilient fallback file-based storage if tables aren't yet in Supabase schema cache
-const DATA_DIR = path.join(process.cwd(), '.data', 'seating')
-
-async function ensureDataDir() {
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true })
-  } catch (err) {
-    // ignore if exists
-  }
-}
-
-async function getLocalSeating(eventId: string): Promise<{ tables: SeatingTable[]; assignments: SeatingAssignment[] }> {
-  try {
-    await ensureDataDir()
-    const filePath = path.join(DATA_DIR, `${eventId}.json`)
-    const raw = await fs.readFile(filePath, 'utf-8')
-    return JSON.parse(raw)
-  } catch (err) {
-    return { tables: [], assignments: [] }
-  }
-}
-
-async function saveLocalSeating(eventId: string, data: { tables: SeatingTable[]; assignments: SeatingAssignment[] }) {
-  await ensureDataDir()
-  const filePath = path.join(DATA_DIR, `${eventId}.json`)
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
 }
 
 // 1. Get all tables and their seated guests
@@ -49,28 +19,25 @@ export async function getSeatingPlan(eventId: string): Promise<{
   try {
     const supabase = getAdminClient()
 
-    // Try Supabase first
     const { data: tablesData, error: tablesError } = await supabase
       .from('seating_tables')
       .select('*')
       .eq('event_id', eventId)
       .order('position_order', { ascending: true })
 
-
     if (tablesError) {
-      // Fallback to local storage
-      const local = await getLocalSeating(eventId)
-      const tablesWithAssignments = local.tables.map(t => ({
-        ...t,
-        assignments: local.assignments.filter(a => a.table_id === t.id)
-      }))
-      return { tables: tablesWithAssignments }
+      console.error('Error fetching tables from Supabase:', tablesError)
+      return { tables: [], error: tablesError.message }
     }
 
-    const { data: assignmentsData } = await supabase
+    const { data: assignmentsData, error: assignmentsError } = await supabase
       .from('seating_assignments')
       .select('*')
       .eq('event_id', eventId)
+
+    if (assignmentsError) {
+      console.error('Error fetching assignments from Supabase:', assignmentsError)
+    }
 
     const assignments = assignmentsData || []
     const tables: SeatingTable[] = (tablesData || []).map(t => ({
@@ -80,13 +47,8 @@ export async function getSeatingPlan(eventId: string): Promise<{
 
     return { tables }
   } catch (err: any) {
-    console.error('Error fetching seating plan:', err)
-    const local = await getLocalSeating(eventId)
-    const tablesWithAssignments = local.tables.map(t => ({
-      ...t,
-      assignments: local.assignments.filter(a => a.table_id === t.id)
-    }))
-    return { tables: tablesWithAssignments }
+    console.error('Error in getSeatingPlan:', err)
+    return { tables: [], error: err.message || 'Error al obtener las mesas' }
   }
 }
 
@@ -127,12 +89,7 @@ export async function createOrUpdateTable(
         .eq('id', table.id)
         .eq('event_id', eventId)
 
-      if (error) {
-        // Fallback local update
-        const local = await getLocalSeating(eventId)
-        local.tables = local.tables.map(t => t.id === table.id ? { ...t, ...payload } : t)
-        await saveLocalSeating(eventId, local)
-      }
+      if (error) throw error
     } else {
       const { error } = await supabase
         .from('seating_tables')
@@ -141,24 +98,13 @@ export async function createOrUpdateTable(
           position_order: Date.now()
         })
 
-      if (error) {
-        // Fallback local insert
-        const local = await getLocalSeating(eventId)
-        const newTable: SeatingTable = {
-          id: `tbl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          ...payload,
-          position_order: local.tables.length + 1,
-          created_at: new Date().toISOString(),
-          assignments: []
-        }
-        local.tables.push(newTable)
-        await saveLocalSeating(eventId, local)
-      }
+      if (error) throw error
     }
 
     revalidatePath(`/dashboard/${eventId}/seating`)
     return { success: true }
   } catch (err: any) {
+    console.error('Error in createOrUpdateTable:', err)
     return { error: err.message || 'Error al guardar la mesa' }
   }
 }
@@ -171,9 +117,8 @@ export async function updateTablePositions(
   try {
     const supabase = getAdminClient()
 
-    // Try Supabase updates
     for (const p of positions) {
-      await supabase
+      const { error } = await supabase
         .from('seating_tables')
         .update({
           pos_x: p.pos_x,
@@ -183,28 +128,16 @@ export async function updateTablePositions(
         })
         .eq('id', p.id)
         .eq('event_id', eventId)
-    }
 
-    // Always keep local storage in sync as fallback
-    const local = await getLocalSeating(eventId)
-    local.tables = local.tables.map(t => {
-      const found = positions.find(p => p.id === t.id)
-      if (found) {
-        return {
-          ...t,
-          pos_x: found.pos_x,
-          pos_y: found.pos_y,
-          shape: found.shape || t.shape || 'round',
-          rotation: found.rotation !== undefined ? found.rotation : (t.rotation || 0)
-        }
+      if (error) {
+        console.error('Error updating position for table:', p.id, error)
       }
-      return t
-    })
-    await saveLocalSeating(eventId, local)
+    }
 
     revalidatePath(`/dashboard/${eventId}/seating`)
     return { success: true }
   } catch (err: any) {
+    console.error('Error in updateTablePositions:', err)
     return { error: err.message || 'Error al guardar posiciones del plano' }
   }
 }
@@ -214,22 +147,25 @@ export async function deleteTable(eventId: string, tableId: string) {
   try {
     const supabase = getAdminClient()
 
+    // Delete assignments first to avoid FK constraint issues
+    await supabase
+      .from('seating_assignments')
+      .delete()
+      .eq('table_id', tableId)
+      .eq('event_id', eventId)
+
     const { error } = await supabase
       .from('seating_tables')
       .delete()
       .eq('id', tableId)
       .eq('event_id', eventId)
 
-    if (error) {
-      const local = await getLocalSeating(eventId)
-      local.tables = local.tables.filter(t => t.id !== tableId)
-      local.assignments = local.assignments.filter(a => a.table_id !== tableId)
-      await saveLocalSeating(eventId, local)
-    }
+    if (error) throw error
 
     revalidatePath(`/dashboard/${eventId}/seating`)
     return { success: true }
   } catch (err: any) {
+    console.error('Error in deleteTable:', err)
     return { error: err.message || 'Error al eliminar la mesa' }
   }
 }
@@ -267,31 +203,19 @@ export async function addOrUpdateGuest(
         .eq('id', guest.id)
         .eq('event_id', eventId)
 
-      if (error) {
-        const local = await getLocalSeating(eventId)
-        local.assignments = local.assignments.map(a => a.id === guest.id ? { ...a, ...payload } : a)
-        await saveLocalSeating(eventId, local)
-      }
+      if (error) throw error
     } else {
       const { error } = await supabase
         .from('seating_assignments')
         .insert(payload)
 
-      if (error) {
-        const local = await getLocalSeating(eventId)
-        const newAssignment: SeatingAssignment = {
-          id: `asg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          ...payload,
-          created_at: new Date().toISOString()
-        }
-        local.assignments.push(newAssignment)
-        await saveLocalSeating(eventId, local)
-      }
+      if (error) throw error
     }
 
     revalidatePath(`/dashboard/${eventId}/seating`)
     return { success: true }
   } catch (err: any) {
+    console.error('Error in addOrUpdateGuest:', err)
     return { error: err.message || 'Error al asignar el invitado' }
   }
 }
@@ -307,31 +231,36 @@ export async function deleteGuest(eventId: string, assignmentId: string) {
       .eq('id', assignmentId)
       .eq('event_id', eventId)
 
-    if (error) {
-      const local = await getLocalSeating(eventId)
-      local.assignments = local.assignments.filter(a => a.id !== assignmentId)
-      await saveLocalSeating(eventId, local)
-    }
+    if (error) throw error
 
     revalidatePath(`/dashboard/${eventId}/seating`)
     return { success: true }
   } catch (err: any) {
+    console.error('Error in deleteGuest:', err)
     return { error: err.message || 'Error al eliminar el comensal' }
   }
 }
 
-// 6. Bulk Import Seating List (e.g. from plain text / Excel copy-paste)
+// 6. Bulk Import Seating List (Directly into Supabase Database)
 export async function bulkImportSeating(eventId: string, rawText: string) {
   try {
+    const supabase = getAdminClient()
     const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean)
     if (lines.length === 0) return { error: 'El texto está vacío' }
 
-    const local = await getLocalSeating(eventId)
+    // Fetch existing tables from Supabase
+    const { data: existingTables } = await supabase
+      .from('seating_tables')
+      .select('*')
+      .eq('event_id', eventId)
 
-    // Format parse examples:
-    // "Mesa 1 - Los Aventureros: Carlos Gomez (Vegano), Laura Perez, Miguel Angel"
-    // or "Mesa 2: Juan, Marta, Sofia"
-    // or "1: Juan, Pedro"
+    const tablesMap = new Map<string, string>()
+    ;(existingTables || []).forEach(t => {
+      tablesMap.set(t.table_number.toLowerCase(), t.id)
+    })
+
+    const newAssignments: any[] = []
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       const colonIndex = line.indexOf(':')
@@ -340,7 +269,6 @@ export async function bulkImportSeating(eventId: string, rawText: string) {
       const tablePart = line.substring(0, colonIndex).trim()
       const guestsPart = line.substring(colonIndex + 1).trim()
 
-      // Extract table number and name
       let tableNumber = `${i + 1}`
       let tableName = ''
 
@@ -353,53 +281,69 @@ export async function bulkImportSeating(eventId: string, rawText: string) {
         tableNumber = cleanTable
       }
 
-      // Check if table already exists or create new
-      let tableObj = local.tables.find(t => t.table_number.toLowerCase() === tableNumber.toLowerCase())
-      if (!tableObj) {
-        tableObj = {
-          id: `tbl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          event_id: eventId,
-          table_number: tableNumber,
-          table_name: tableName || undefined,
-          capacity: 10,
-          position_order: local.tables.length + 1,
-          created_at: new Date().toISOString()
+      let tableId = tablesMap.get(tableNumber.toLowerCase())
+      if (!tableId) {
+        // Create table in Supabase
+        const { data: insertedTable, error: tErr } = await supabase
+          .from('seating_tables')
+          .insert({
+            event_id: eventId,
+            table_number: tableNumber,
+            table_name: tableName || undefined,
+            capacity: 10,
+            shape: 'round',
+            position_order: Date.now() + i
+          })
+          .select('id')
+          .single()
+
+        if (tErr || !insertedTable) {
+          console.error('Error inserting table during bulk import:', tErr)
+          continue
         }
-        local.tables.push(tableObj)
-      } else if (tableName && !tableObj.table_name) {
-        tableObj.table_name = tableName
+
+        tableId = insertedTable.id
+        if (tableId) {
+          tablesMap.set(tableNumber.toLowerCase(), tableId)
+        }
       }
 
-      // Parse guests
+      // Parse individual guests
       const guests = guestsPart.split(',').map(g => g.trim()).filter(Boolean)
       for (const guestItem of guests) {
         let guestName = guestItem
         let dietary = ''
-        
-        // Extract parenthesized note or diet (e.g. "Carlos (Vegano)")
+
         const match = guestItem.match(/^(.*?)\((.*?)\)$/)
         if (match) {
           guestName = match[1].trim()
           dietary = match[2].trim()
         }
 
-        if (guestName) {
-          local.assignments.push({
-            id: `asg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        if (guestName && tableId) {
+          newAssignments.push({
             event_id: eventId,
-            table_id: tableObj.id,
+            table_id: tableId,
             guest_name: guestName,
-            dietary_requirements: dietary || undefined,
-            created_at: new Date().toISOString()
+            seats_count: 1,
+            dietary_requirements: dietary || null
           })
         }
       }
     }
 
-    await saveLocalSeating(eventId, local)
+    if (newAssignments.length > 0) {
+      const { error: aErr } = await supabase
+        .from('seating_assignments')
+        .insert(newAssignments)
+
+      if (aErr) throw aErr
+    }
+
     revalidatePath(`/dashboard/${eventId}/seating`)
     return { success: true }
   } catch (err: any) {
+    console.error('Error in bulkImportSeating:', err)
     return { error: err.message || 'Error en la importación masiva' }
   }
 }
