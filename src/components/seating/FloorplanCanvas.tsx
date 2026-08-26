@@ -575,6 +575,12 @@ export function FloorplanCanvas({
     }
   }, [isPanning, panStart, pinchDist, viewBoxWidth, viewBoxHeight])
 
+  // Wheel zoom handler for direct React and native integration
+  const handleWheelZoom = useCallback((deltaY: number) => {
+    const factor = deltaY < 0 ? 1.15 : 0.85
+    setZoom(prev => Math.min(3.5, Math.max(0.5, +(prev * factor).toFixed(2))))
+  }, [])
+
   // Native desktop mouse wheel & trackpad zoom listener
   useEffect(() => {
     const container = containerRef.current
@@ -583,15 +589,14 @@ export function FloorplanCanvas({
     const handleNativeWheel = (e: WheelEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      const factor = e.deltaY < 0 ? 1.12 : 0.89
-      setZoom(prev => Math.min(3.2, Math.max(0.5, +(prev * factor).toFixed(2))))
+      handleWheelZoom(e.deltaY)
     }
 
     container.addEventListener('wheel', handleNativeWheel, { passive: false })
     return () => {
       container.removeEventListener('wheel', handleNativeWheel)
     }
-  }, [])
+  }, [handleWheelZoom])
 
   // Keyboard shortcut listener (+ / - / 0) for desktop
   useEffect(() => {
@@ -912,9 +917,9 @@ export function FloorplanCanvas({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setZoom(prev => Math.min(1.4, prev + 0.1))}
+              onClick={() => setZoom(prev => Math.min(3.2, +(prev + 0.25).toFixed(2)))}
               className="h-8 px-2.5 rounded-xl cursor-pointer"
-              title="Acercar zoom"
+              title="Acercar zoom (+)"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </Button>
@@ -923,11 +928,22 @@ export function FloorplanCanvas({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setZoom(prev => Math.max(0.7, prev - 0.1))}
+              onClick={() => setZoom(prev => Math.max(0.5, +(prev - 0.25).toFixed(2)))}
               className="h-8 px-2.5 rounded-xl cursor-pointer"
-              title="Alejar zoom"
+              title="Alejar zoom (-)"
             >
               <ZoomOut className="w-3.5 h-3.5" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
+              className="h-8 px-2.5 rounded-xl cursor-pointer text-xs font-bold"
+              title="Reiniciar zoom al 100%"
+            >
+              100%
             </Button>
 
             <Button
@@ -947,6 +963,10 @@ export function FloorplanCanvas({
       {/* Main Floorplan Canvas Container */}
       <div 
         ref={containerRef}
+        onWheel={(e) => {
+          e.preventDefault()
+          handleWheelZoom(e.deltaY)
+        }}
         className="relative rounded-3xl border-2 border-border/80 overflow-hidden shadow-xl bg-slate-950/5 dark:bg-slate-950/40 backdrop-blur-md"
       >
         {/* Floating Zoom & Pan Controls (Always visible in guest and admin view) */}
