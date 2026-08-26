@@ -107,15 +107,43 @@ async function runSeed() {
 
   if (tables && tables.length > 0) {
     await supabase.from('seating_assignments').insert([
-      { event_id: event.id, table_id: tables[0].id, guest_name: 'Lucía (Novia)', companion_names: 'Carlos (Novio)', dietary_requirements: 'Ninguna' },
-      { event_id: event.id, table_id: tables[0].id, guest_name: 'Carmen Morales (Madre)', companion_names: 'Antonio Serrano (Padre)', dietary_requirements: 'Sin marisco' },
-      { event_id: event.id, table_id: tables[1].id, guest_name: 'Mateo García', companion_names: 'Sofía Fernández', dietary_requirements: 'Vegetariano (Sofía)' },
-      { event_id: event.id, table_id: tables[1].id, guest_name: 'Alejandro Martínez', companion_names: '', dietary_requirements: 'Celíaco (Sin gluten)' },
-      { event_id: event.id, table_id: tables[1].id, guest_name: 'Elena López', companion_names: 'David Ruiz', dietary_requirements: 'Ninguna' },
-      { event_id: event.id, table_id: tables[2].id, guest_name: 'Tía Rosa', companion_names: 'Tío Paco', dietary_requirements: 'Bajo en sal' },
-      { event_id: event.id, table_id: tables[4].id, guest_name: 'Javier Navarro', companion_names: 'Marta Gil', dietary_requirements: 'Intolerancia a la lactosa' }
+      // Mesa 1
+      { event_id: event.id, table_id: tables[0].id, guest_name: 'Laura (Novia)', seats_count: 1, notes: 'Novia' },
+      { event_id: event.id, table_id: tables[0].id, guest_name: 'Lorenzo (Novio)', seats_count: 1, notes: 'Novio' },
+      { event_id: event.id, table_id: tables[0].id, guest_name: 'Carmen Morales', seats_count: 1, dietary_requirements: 'Sin marisco', notes: 'Madre Novia' },
+      { event_id: event.id, table_id: tables[0].id, guest_name: 'Antonio Serrano', seats_count: 1, notes: 'Padre Novia' },
+      { event_id: event.id, table_id: tables[0].id, guest_name: 'Isabel Gómez', seats_count: 1, notes: 'Madre Novio' },
+      { event_id: event.id, table_id: tables[0].id, guest_name: 'Manuel Carrasquer', seats_count: 1, notes: 'Padre Novio' },
+
+      // Mesa 2
+      { event_id: event.id, table_id: tables[1].id, guest_name: 'Mateo García', seats_count: 1 },
+      { event_id: event.id, table_id: tables[1].id, guest_name: 'Sofía Fernández', seats_count: 1, dietary_requirements: 'Vegetariano' },
+      { event_id: event.id, table_id: tables[1].id, guest_name: 'Alejandro Martínez', seats_count: 1, dietary_requirements: 'Celíaco (Sin gluten)' },
+      { event_id: event.id, table_id: tables[1].id, guest_name: 'Elena López', seats_count: 1 },
+      { event_id: event.id, table_id: tables[1].id, guest_name: 'David Ruiz', seats_count: 1 },
+      { event_id: event.id, table_id: tables[1].id, guest_name: 'Lucas Benítez', seats_count: 1 },
+      { event_id: event.id, table_id: tables[1].id, guest_name: 'Carla Valls', seats_count: 1 },
+
+      // Mesa 3
+      { event_id: event.id, table_id: tables[2].id, guest_name: 'Tía Rosa', seats_count: 1 },
+      { event_id: event.id, table_id: tables[2].id, guest_name: 'Tío Paco', seats_count: 1, dietary_requirements: 'Bajo en sal' },
+      { event_id: event.id, table_id: tables[2].id, guest_name: 'Primo Alberto', seats_count: 1 },
+      { event_id: event.id, table_id: tables[2].id, guest_name: 'Nuria Pons', seats_count: 1 },
+      { event_id: event.id, table_id: tables[2].id, guest_name: 'Abuela Dolores', seats_count: 1, dietary_requirements: 'Menú blando' },
+
+      // Mesa 4
+      { event_id: event.id, table_id: tables[3].id, guest_name: 'Tío Fernando', seats_count: 1 },
+      { event_id: event.id, table_id: tables[3].id, guest_name: 'Tía Concha', seats_count: 1 },
+      { event_id: event.id, table_id: tables[3].id, guest_name: 'Prima Lucía', seats_count: 1, dietary_requirements: 'Vegano' },
+      { event_id: event.id, table_id: tables[3].id, guest_name: 'Marcos Soler', seats_count: 1 },
+
+      // Mesa 5
+      { event_id: event.id, table_id: tables[4].id, guest_name: 'Javier Navarro', seats_count: 1, dietary_requirements: 'Intolerancia a la lactosa' },
+      { event_id: event.id, table_id: tables[4].id, guest_name: 'Marta Gil', seats_count: 1 },
+      { event_id: event.id, table_id: tables[4].id, guest_name: 'Sergio Ramos', seats_count: 1 },
+      { event_id: event.id, table_id: tables[4].id, guest_name: 'Paula Sanz', seats_count: 1 }
     ])
-    console.log('✅ Seating Plan configurado (5 mesas con distribución de invitados y dietas).')
+    console.log('✅ Seating Plan configurado (5 mesas con cada comensal como persona individual).')
   }
 
   // 5. Etiquetas de Fotos
