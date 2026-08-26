@@ -113,64 +113,75 @@ export function SeatingFinderModal({
         className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl lg:max-w-3xl bg-background sm:rounded-2xl sm:border sm:border-white/40 dark:sm:border-white/10 sm:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header - Matching Cronograma & Guestbook */}
-        <div className="bg-background/80 backdrop-blur-md p-4 flex justify-between items-center border-b shrink-0">
-          <div>
-            <h3 className="font-extrabold text-lg flex items-center gap-2">
-              <span className="text-xl shrink-0">🪑</span> Buscador de Mesas
-            </h3>
-            <p className="text-xs text-muted-foreground font-medium">Encuentra tu mesa y compañeros de banquete</p>
+        {/* Sticky Header with segmented pill tabs (never covered or cut off) */}
+        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-xl border-b border-border/80 shrink-0">
+          {/* Top Title Row */}
+          <div className="p-3.5 sm:p-4 flex justify-between items-center border-b border-border/50">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-xl shrink-0 p-1.5 rounded-xl bg-primary/10 border border-primary/20">🪑</span>
+              <div className="min-w-0">
+                <h3 className="font-extrabold text-base sm:text-lg text-foreground truncate leading-tight">
+                  Buscador de Mesas
+                </h3>
+                <p className="text-xs text-muted-foreground truncate">
+                  Encuentra tu mesa y compañeros
+                </p>
+              </div>
+            </div>
+
+            <button 
+              type="button"
+              onClick={onClose} 
+              className="w-10 h-10 rounded-full bg-muted/80 hover:bg-muted active:scale-90 flex items-center justify-center transition-all cursor-pointer text-foreground border border-border/60 shrink-0 ml-2 shadow-xs"
+              aria-label="Cerrar"
+              title="Cerrar ventana"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button 
-            onClick={onClose} 
-            className="p-2 hover:bg-muted rounded-full transition-colors active:scale-95 cursor-pointer text-muted-foreground hover:text-foreground"
-            aria-label="Cerrar"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* Tab switch - Segmented Pill Control for easy mobile tapping */}
-        <div className="p-3 bg-muted/30 border-b border-border/80 shrink-0">
-          <div className="grid grid-cols-3 gap-1.5 bg-muted/70 p-1 rounded-2xl border border-border/60">
-            <button
-              type="button"
-              onClick={() => setActiveTab('search')}
-              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
-                activeTab === 'search'
-                  ? 'bg-background text-primary shadow-sm border border-border/60'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
-              }`}
-            >
-              <Search className="w-3.5 h-3.5" />
-              <span>Buscar</span>
-            </button>
+          {/* Segmented Tab Buttons (Clean, flexible, never overflowing or clipped) */}
+          <div className="p-2 sm:p-2.5 bg-muted/30">
+            <div className="grid grid-cols-3 gap-1 bg-muted/80 p-1 rounded-2xl border border-border/60">
+              <button
+                type="button"
+                onClick={() => setActiveTab('search')}
+                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none truncate ${
+                  activeTab === 'search'
+                    ? 'bg-background text-primary shadow-sm font-black border border-border/50'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
+                }`}
+              >
+                <Search className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Buscar</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('floorplan')}
-              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
-                activeTab === 'floorplan'
-                  ? 'bg-background text-primary shadow-sm border border-border/60'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
-              }`}
-            >
-              <Map className="w-3.5 h-3.5" />
-              <span>Plano 2D</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('floorplan')}
+                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none truncate ${
+                  activeTab === 'floorplan'
+                    ? 'bg-background text-primary shadow-sm font-black border border-border/50'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
+                }`}
+              >
+                <Map className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Plano 2D</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('all')}
-              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
-                activeTab === 'all'
-                  ? 'bg-background text-primary shadow-sm border border-border/60'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Todas ({tables.length})</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('all')}
+                className={`py-2 px-1 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none truncate ${
+                  activeTab === 'all'
+                    ? 'bg-background text-primary shadow-sm font-black border border-border/50'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Todas ({tables.length})</span>
+              </button>
+            </div>
           </div>
         </div>
 
