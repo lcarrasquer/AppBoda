@@ -106,11 +106,11 @@ export function SeatingFinderModal({
 
   return (
     <div 
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[999] bg-black/80 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div 
-        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl lg:max-w-3xl bg-background sm:rounded-2xl sm:border sm:border-white/40 dark:sm:border-white/10 sm:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-2xl lg:max-w-3xl bg-background sm:rounded-2xl sm:border sm:border-white/40 dark:sm:border-white/10 sm:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sticky Header with segmented pill tabs (never covered or cut off) */}

@@ -46,10 +46,12 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
     : undefined
 
   return (
-    <div className="min-h-screen pb-20 relative overflow-hidden" style={themeStyle}>
-      {/* Background glowing orb accents */}
-      <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/3 right-1/4 w-96 h-96 bg-sky-400/15 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen pb-20 relative" style={themeStyle}>
+      {/* Background glowing orb accents confined to their own layer */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-primary/15 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/3 right-1/4 w-96 h-96 bg-sky-400/15 rounded-full blur-3xl" />
+      </div>
 
       <header className="sticky top-0 z-20 glass-panel backdrop-blur-xl border-b border-white/40 dark:border-white/10 shadow-sm">
         <div className="container mx-auto px-4 py-3 flex flex-col items-center justify-center relative">
