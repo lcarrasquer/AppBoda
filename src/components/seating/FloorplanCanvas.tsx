@@ -224,11 +224,16 @@ export function FloorplanCanvas({
 
     setTables(updated)
     if (highlightTableId) {
+      const hlTable = updated.find(t => t.id === highlightTableId)
       setSelectedTableId(highlightTableId)
       setSelectedLandmarkId(null)
-      // Mantener escala al 100% para que no se redimensione la pantalla en móvil
-      setZoom(1)
-      setPan({ x: 0, y: 0 })
+      if (hlTable && hlTable.pos_x && hlTable.pos_y) {
+        setZoom(1.85)
+        setPan({
+          x: hlTable.pos_x - CANVAS_WIDTH / 2,
+          y: hlTable.pos_y - CANVAS_HEIGHT / 2
+        })
+      }
     }
   }, [initialTables, highlightTableId])
 
@@ -249,6 +254,19 @@ export function FloorplanCanvas({
       y: viewBoxY + ((clientY - rect.top) / rect.height) * viewBoxHeight
     }
   }, [viewBoxX, viewBoxY, viewBoxWidth, viewBoxHeight])
+
+  // Select table and zoom close to it
+  const selectAndFocusTable = (table: SeatingTable) => {
+    setSelectedTableId(table.id)
+    setSelectedLandmarkId(null)
+    if (table.pos_x && table.pos_y) {
+      setZoom(1.85)
+      setPan({
+        x: table.pos_x - CANVAS_WIDTH / 2,
+        y: table.pos_y - CANVAS_HEIGHT / 2
+      })
+    }
+  }
 
   // Canvas background Pan handlers (drag to move view)
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
@@ -290,8 +308,7 @@ export function FloorplanCanvas({
   // 1. Table Drag & Click Handlers
   const handleTableMouseDown = (e: React.MouseEvent, table: SeatingTable) => {
     e.stopPropagation()
-    setSelectedTableId(table.id)
-    setSelectedLandmarkId(null)
+    selectAndFocusTable(table)
     if (readOnly || resizingLandmark) return
 
     const coords = getSVGCoords(e.clientX, e.clientY)
@@ -304,8 +321,7 @@ export function FloorplanCanvas({
 
   const handleTableTouchStart = (e: React.TouchEvent, table: SeatingTable) => {
     e.stopPropagation()
-    setSelectedTableId(table.id)
-    setSelectedLandmarkId(null)
+    selectAndFocusTable(table)
     if (readOnly || resizingLandmark) return
 
     const touch = e.touches[0]
@@ -1540,7 +1556,7 @@ export function FloorplanCanvas({
       {/* Guest View: Selected Table Details Card placed cleanly BELOW canvas (so it never covers the map) */}
       {readOnly && selectedTable && (
         <div className="mt-3 p-4 bg-card rounded-2xl border-2 border-primary/40 shadow-lg space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center justify-between border-b border-border pb-2.5">
+          <div className="flex items-center justify-between border-b border-border pb-2.5 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-extrabold px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20">
                 Mesa {selectedTable.table_number}
@@ -1551,35 +1567,50 @@ export function FloorplanCanvas({
             </div>
             <button
               type="button"
-              onClick={() => setSelectedTableId(null)}
-              className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-lg hover:bg-muted cursor-pointer transition-colors"
+              onClick={() => {
+                setSelectedTableId(null)
+                setZoom(1)
+                setPan({ x: 0, y: 0 })
+              }}
+              className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-lg bg-muted/60 hover:bg-muted cursor-pointer transition-colors flex items-center gap-1"
+              title="Alejar y ver todo el salón al 100%"
             >
-              Ocultar info ✕
+              <RotateCcw className="w-3 h-3 text-primary" />
+              <span>Ver salón completo</span>
             </button>
           </div>
 
-          <div className="space-y-1.5">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <Users className="w-3 h-3 text-primary" />
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-primary" />
               <span>Comensales en esta mesa ({selectedTablePeople.length} personas):</span>
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
-              {selectedTablePeople.map((p, idx) => (
-                <div
-                  key={p.uniqueId}
-                  className="p-2 rounded-xl bg-muted/40 border border-border/50 text-xs flex items-center justify-between gap-1.5"
-                >
-                  <span className="font-medium text-foreground truncate">
-                    {idx + 1}. {p.name}
-                    {p.isCompanion && <span className="text-[10px] text-muted-foreground ml-1">({p.parentGuestName})</span>}
-                  </span>
-                  {p.dietary && (
-                    <span title={p.dietary}>
-                      {renderDietaryIcon(p.dietary)}
-                    </span>
-                  )}
-                </div>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+              {selectedTablePeople.length > 0 ? (
+                selectedTablePeople.map((p, idx) => (
+                  <div
+                    key={p.uniqueId}
+                    className="p-2.5 rounded-xl bg-muted/40 border border-border/60 text-xs flex items-center justify-between gap-2 shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-5 h-5 rounded-full bg-background border text-[10px] font-extrabold flex items-center justify-center shrink-0">
+                        {idx + 1}
+                      </span>
+                      <span className="font-semibold text-foreground truncate">
+                        {p.name}
+                        {p.isCompanion && <span className="text-[10px] text-muted-foreground ml-1">({p.parentGuestName})</span>}
+                      </span>
+                    </div>
+                    {p.dietary && (
+                      <span title={p.dietary} className="shrink-0 bg-background/80 px-1.5 py-0.5 rounded-md border text-[11px]">
+                        {renderDietaryIcon(p.dietary)} {p.dietary}
+                      </span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground italic col-span-2 text-center py-2">Esta mesa aún no tiene comensales asignados.</p>
+              )}
             </div>
           </div>
         </div>
