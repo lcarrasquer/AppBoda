@@ -88,7 +88,7 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
           )}
         </div>
       </header>
-      <main className="container mx-auto p-4 z-10 relative">
+      <main className="container mx-auto p-4 relative">
         <GuestFlow event={event} />
       </main>
     </div>
