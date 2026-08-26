@@ -287,18 +287,15 @@ export function FloorplanCanvas({
     }
   }
 
-  // 1. Table Drag Handlers
+  // 1. Table Drag & Click Handlers
   const handleTableMouseDown = (e: React.MouseEvent, table: SeatingTable) => {
-    if (readOnly || resizingLandmark) {
-      setSelectedTableId(table.id)
-      setSelectedLandmarkId(null)
-      return
-    }
     e.stopPropagation()
-    const coords = getSVGCoords(e.clientX, e.clientY)
-    setDraggingItem({ type: 'table', id: table.id })
     setSelectedTableId(table.id)
     setSelectedLandmarkId(null)
+    if (readOnly || resizingLandmark) return
+
+    const coords = getSVGCoords(e.clientX, e.clientY)
+    setDraggingItem({ type: 'table', id: table.id })
     setDragOffset({
       x: coords.x - (table.pos_x || 0),
       y: coords.y - (table.pos_y || 0)
@@ -306,16 +303,14 @@ export function FloorplanCanvas({
   }
 
   const handleTableTouchStart = (e: React.TouchEvent, table: SeatingTable) => {
-    if (readOnly || resizingLandmark) {
-      setSelectedTableId(table.id)
-      setSelectedLandmarkId(null)
-      return
-    }
+    e.stopPropagation()
+    setSelectedTableId(table.id)
+    setSelectedLandmarkId(null)
+    if (readOnly || resizingLandmark) return
+
     const touch = e.touches[0]
     const coords = getSVGCoords(touch.clientX, touch.clientY)
     setDraggingItem({ type: 'table', id: table.id })
-    setSelectedTableId(table.id)
-    setSelectedLandmarkId(null)
     setDragOffset({
       x: coords.x - (table.pos_x || 0),
       y: coords.y - (table.pos_y || 0)
@@ -1033,11 +1028,6 @@ export function FloorplanCanvas({
               setZoom(prev => prev < 1.8 ? 2 : 1)
               if (zoom >= 1.8) setPan({ x: 0, y: 0 })
             }}
-            onClick={() => {
-              setSelectedTableId(null)
-              setSelectedLandmarkId(null)
-              setShowAddElementMenu(false)
-            }}
           >
             {/* Background Grid Pattern */}
             <defs>
@@ -1055,7 +1045,17 @@ export function FloorplanCanvas({
               </filter>
             </defs>
 
-            <rect width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="url(#floor-grid)" />
+            {/* Click on empty background deselects table */}
+            <rect 
+              width={CANVAS_WIDTH} 
+              height={CANVAS_HEIGHT} 
+              fill="url(#floor-grid)" 
+              onClick={() => {
+                setSelectedTableId(null)
+                setSelectedLandmarkId(null)
+                setShowAddElementMenu(false)
+              }}
+            />
 
             {/* Draggable & Resizable Hall Landmarks */}
             {landmarks.filter(l => l.visible).map(lm => {
