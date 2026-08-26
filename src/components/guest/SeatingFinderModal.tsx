@@ -66,9 +66,19 @@ export function SeatingFinderModal({
     }
   }
 
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
-  // Find matches across guest names AND companion names
+  // Find matches across guest names
   const cleanQuery = query.trim().toLowerCase()
   const matchingResults: { guest: SeatingAssignment; table: SeatingTable; matchedCompanion?: boolean }[] = []
 
@@ -88,65 +98,44 @@ export function SeatingFinderModal({
 
   const renderDietaryIcon = (diet: string) => {
     const lower = diet.toLowerCase()
-    if (lower.includes('veg')) return <Salad className="w-3 h-3 text-emerald-500 shrink-0" />
-    if (lower.includes('cel') || lower.includes('gluten')) return <Wheat className="w-3 h-3 text-amber-500 shrink-0" />
-    if (lower.includes('infant') || lower.includes('niñ')) return <Baby className="w-3 h-3 text-sky-500 shrink-0" />
-    return <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+    if (lower.includes('veg')) return <Salad className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+    if (lower.includes('cel') || lower.includes('gluten')) return <Wheat className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+    if (lower.includes('infant') || lower.includes('niñ')) return <Baby className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+    return <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
   }
-
-  // Close modal on Escape key
-  useEffect(() => {
-    if (!isOpen) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200 cursor-pointer"
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div 
-        className="bg-card text-card-foreground border border-white/40 dark:border-white/10 rounded-3xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 cursor-default"
+        className="w-full h-full sm:h-auto sm:max-h-[88vh] sm:max-w-lg bg-background sm:rounded-2xl sm:border sm:border-white/40 dark:sm:border-white/10 sm:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-border/80 flex items-center justify-between gap-3 bg-muted/40 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-xl shadow-inner shrink-0">
-              🪑
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-bold text-base sm:text-lg leading-tight text-foreground flex items-center gap-1.5 truncate">
-                <span>Buscador de Mesas</span>
-              </h2>
-              <p className="text-xs text-muted-foreground truncate">
-                Encuentra tu mesa y descubre con quién te sientas
-              </p>
-            </div>
+        {/* Header - Matching Cronograma & Guestbook */}
+        <div className="bg-background/80 backdrop-blur-md p-4 flex justify-between items-center border-b shrink-0">
+          <div>
+            <h3 className="font-extrabold text-lg flex items-center gap-2">
+              <span className="text-xl shrink-0">🪑</span> Buscador de Mesas
+            </h3>
+            <p className="text-xs text-muted-foreground font-medium">Encuentra tu mesa y compañeros de banquete</p>
           </div>
-
-          {/* Large touch-friendly close button (44px min touch target) */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-11 h-11 sm:w-10 sm:h-10 rounded-2xl bg-muted/90 hover:bg-muted active:scale-90 text-foreground flex items-center justify-center border border-border shadow-xs transition-all cursor-pointer shrink-0"
-            aria-label="Cerrar ventana de mesas"
-            title="Cerrar (Esc)"
+          <button 
+            onClick={onClose} 
+            className="p-2 hover:bg-muted rounded-full transition-colors active:scale-95 cursor-pointer text-muted-foreground hover:text-foreground"
+            aria-label="Cerrar"
           >
-            <X className="w-5 h-5 text-foreground" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab switch */}
-        <div className="px-5 pt-3 shrink-0 flex items-center gap-2 border-b border-border/60 overflow-x-auto">
+        <div className="px-4 pt-2.5 shrink-0 flex items-center gap-2 border-b bg-muted/20 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('search')}
-            className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 shrink-0 ${
+            className={`pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === 'search'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -159,7 +148,7 @@ export function SeatingFinderModal({
           <button
             type="button"
             onClick={() => setActiveTab('floorplan')}
-            className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 shrink-0 ${
+            className={`pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === 'floorplan'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -172,7 +161,7 @@ export function SeatingFinderModal({
           <button
             type="button"
             onClick={() => setActiveTab('all')}
-            className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 shrink-0 ${
+            className={`pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === 'all'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -184,7 +173,7 @@ export function SeatingFinderModal({
         </div>
 
         {/* Content Area */}
-        <div className="p-5 overflow-y-auto flex-1 space-y-4">
+        <div className="p-4 space-y-4 flex-1 overflow-y-auto">
           
           {loading ? (
             <div className="py-12 text-center space-y-3">
@@ -200,89 +189,81 @@ export function SeatingFinderModal({
           ) : activeTab === 'search' ? (
             <div className="space-y-4">
               
-              {/* Search input */}
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Escribe tu nombre, apellidos o mesa..."
-                  className="pl-10 h-11 rounded-2xl bg-muted/30 border-border shadow-inner text-base sm:text-sm"
-                />
-                {query && (
-                  <button
-                    onClick={() => setQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground font-semibold cursor-pointer"
-                  >
-                    Borrar
-                  </button>
-                )}
+              {/* Search input form styled like Guestbook */}
+              <div className="space-y-2 bg-muted/40 p-4 rounded-xl border">
+                <label className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" /> Busca tu nombre o acompañante
+                </label>
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Escribe tu nombre (ej: Mateo, Sofía, Carmen)..."
+                    className="pl-10 pr-16 h-11 rounded-xl bg-background border border-input text-base sm:text-sm shadow-xs"
+                  />
+                  {query && (
+                    <button
+                      onClick={() => setQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground hover:text-foreground cursor-pointer px-1.5 py-0.5 rounded-md hover:bg-muted"
+                    >
+                      Borrar
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Search results */}
               {cleanQuery.length < 2 ? (
-                <div className="py-8 text-center space-y-2 text-muted-foreground">
-                  <p className="text-xs">Empieza a escribir para localizar tu mesa al instante 🔍</p>
+                <div className="text-center p-8 border border-dashed rounded-xl text-muted-foreground text-xs">
+                  Empieza a escribir para localizar tu mesa al instante 🔍
                 </div>
               ) : matchingResults.length === 0 ? (
-                <div className="py-8 text-center space-y-2 bg-muted/20 rounded-2xl border border-dashed p-4">
-                  <p className="text-2xl">🤔</p>
-                  <p className="text-sm font-bold text-foreground">No encontramos a "{query}"</p>
-                  <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                    Prueba buscando tu nombre de pila, o explora la pestaña "Todas las Mesas".
-                  </p>
+                <div className="text-center p-8 border border-dashed rounded-xl text-muted-foreground text-xs space-y-1">
+                  <p className="text-xl">🤔</p>
+                  <p className="font-bold text-sm text-foreground">No encontramos a "{query}"</p>
+                  <p className="text-xs text-muted-foreground">Prueba buscando tu nombre de pila o explora la pestaña "Todas las Mesas".</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {matchingResults.map(({ guest, table, matchedCompanion }) => {
+                <div className="space-y-3">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <PartyPopper className="w-3.5 h-3.5 text-primary" /> Resultados encontrados ({matchingResults.length})
+                  </h4>
+
+                  {matchingResults.map(({ guest, table }) => {
                     const totalTablePeople = getTablePeopleCount(table)
-                    const seatCount = getAssignmentSeatCount(guest)
 
                     return (
                       <div 
                         key={guest.id}
-                        className="rounded-2xl border-2 border-primary/40 bg-primary/[0.03] p-4 sm:p-5 shadow-lg space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300"
+                        className="p-4 rounded-xl border bg-card shadow-sm space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300"
                       >
-                        {/* Hero badge */}
+                        {/* Hero Header */}
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold shadow-sm mb-1.5">
-                              <PartyPopper className="w-3.5 h-3.5" />
-                              <span>¡Aquí está tu mesa!</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-extrabold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                                Mesa {table.table_number}
+                              </span>
+                              <span className="font-bold text-base text-foreground">
+                                {table.table_name || `Mesa ${table.table_number}`}
+                              </span>
                             </div>
-                            <h3 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
-                              Mesa {table.table_number}
-                              {table.table_name && (
-                                <span className="text-primary block text-base font-bold font-serif mt-0.5">
-                                  «{table.table_name}»
-                                </span>
-                              )}
-                            </h3>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Asignado a: <strong className="text-foreground">{guest.guest_name}</strong>
+                            </p>
                           </div>
 
-                          <div className="text-right shrink-0">
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-                              {matchedCompanion ? 'Acompañante de' : 'Invitado'}
-                            </span>
-                            <span className="font-extrabold text-sm text-foreground">{guest.guest_name}</span>
-                            {guest.companion_names && (
-                              <span className="text-[11px] text-primary block font-semibold">
-                                {guest.companion_names}
-                              </span>
-                            )}
-                            {seatCount > 1 && (
-                              <span className="inline-block px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold mt-1 border border-primary/20">
-                                👥 {seatCount} plazas en la mesa
-                              </span>
-                            )}
-                          </div>
+                          <span className="text-2xl bg-muted/60 p-2 rounded-xl border shrink-0">
+                            🍽️
+                          </span>
                         </div>
 
                         {/* Dietary note if any */}
                         {guest.dietary_requirements && (
                           <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/10 text-amber-900 dark:text-amber-300 border border-amber-500/20 text-xs font-semibold">
                             {renderDietaryIcon(guest.dietary_requirements)}
-                            <span>Menú especial registrado: <strong>{guest.dietary_requirements}</strong></span>
+                            <span>Menú especial: <strong>{guest.dietary_requirements}</strong></span>
                           </div>
                         )}
 
@@ -295,49 +276,34 @@ export function SeatingFinderModal({
                         )}
 
                         {/* Companions in table */}
-                        <div className="pt-3 border-t border-border/80 space-y-2">
-                          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                            <Users className="w-3.5 h-3.5 text-primary" />
-                            <span>Tus compañeros de mesa ({totalTablePeople} personas en total):</span>
+                        <div className="pt-2 border-t space-y-1.5">
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                            <Users className="w-3 h-3 text-primary" />
+                            <span>Compañeros de mesa ({totalTablePeople} comensales):</span>
                           </p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                             {table.assignments?.map(comp => {
-                              const compSeats = getAssignmentSeatCount(comp)
                               const isCurrent = comp.id === guest.id
 
                               return (
                                 <div
                                   key={comp.id}
-                                  className={`p-2 rounded-xl border text-xs flex items-center justify-between gap-1.5 ${
+                                  className={`p-2 rounded-lg border text-xs flex items-center justify-between gap-1.5 ${
                                     isCurrent
-                                      ? 'bg-primary/15 border-primary/40 font-bold text-primary'
-                                      : 'bg-background/80 border-border text-foreground font-medium'
+                                      ? 'bg-primary/10 border-primary/30 font-bold text-primary'
+                                      : 'bg-muted/40 border-border text-foreground font-medium'
                                   }`}
                                 >
-                                  <div className="min-w-0">
-                                    <span className="truncate block">
-                                      {comp.guest_name}
-                                      {isCurrent ? ' (Tú)' : ''}
-                                    </span>
-                                    {comp.companion_names && (
-                                      <span className="text-[10px] text-muted-foreground block font-normal">
-                                        {comp.companion_names}
-                                      </span>
-                                    )}
-                                  </div>
+                                  <span className="truncate">
+                                    {comp.guest_name}
+                                    {isCurrent ? ' (Tú)' : ''}
+                                  </span>
 
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    {compSeats > 1 && (
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted font-bold text-muted-foreground">
-                                        +{compSeats - 1}
-                                      </span>
-                                    )}
-                                    {comp.dietary_requirements && (
-                                      <span title={comp.dietary_requirements}>
-                                        {renderDietaryIcon(comp.dietary_requirements)}
-                                      </span>
-                                    )}
-                                  </div>
+                                  {comp.dietary_requirements && (
+                                    <span title={comp.dietary_requirements}>
+                                      {renderDietaryIcon(comp.dietary_requirements)}
+                                    </span>
+                                  )}
                                 </div>
                               )
                             })}
@@ -345,7 +311,7 @@ export function SeatingFinderModal({
                         </div>
 
                         {/* Button to Locate on 2D Floorplan */}
-                        <div className="pt-2">
+                        <div className="pt-1">
                           <Button
                             type="button"
                             size="sm"
@@ -354,10 +320,10 @@ export function SeatingFinderModal({
                               setHighlightedTableId(table.id)
                               setActiveTab('floorplan')
                             }}
-                            className="w-full text-xs font-bold rounded-xl gap-2 border-primary/40 text-primary hover:bg-primary/10 cursor-pointer shadow-xs"
+                            className="w-full text-xs font-bold rounded-xl gap-2 border-primary/30 text-primary hover:bg-primary/10 cursor-pointer py-4"
                           >
                             <Map className="w-3.5 h-3.5" />
-                            <span>Ver ubicación exacta en el Plano 2D 🗺️</span>
+                            <span>Ver ubicación en el Plano 2D 🗺️</span>
                           </Button>
                         </div>
                       </div>
@@ -369,13 +335,13 @@ export function SeatingFinderModal({
           ) : activeTab === 'floorplan' ? (
             /* 2D Floorplan View */
             <div className="space-y-3">
-              <div className="p-3 bg-muted/40 rounded-2xl border border-border flex items-center justify-between text-xs">
-                <span className="text-muted-foreground font-semibold flex items-center gap-1.5">
+              <div className="p-3 bg-muted/40 rounded-xl border flex items-center justify-between text-xs">
+                <span className="text-muted-foreground font-medium flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
-                  <span>Haz clic en cualquier mesa para ver quién se sienta en ella</span>
+                  <span>Pulsa cualquier mesa para ver sus comensales</span>
                 </span>
                 {highlightedTableId && (
-                  <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 font-extrabold text-[10px] border border-rose-500/20 animate-pulse">
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold text-[10px] border border-rose-500/20">
                     Tu mesa resaltada 📍
                   </span>
                 )}
@@ -389,7 +355,7 @@ export function SeatingFinderModal({
               />
             </div>
           ) : (
-            /* All tables accordion */
+            /* All tables accordion matching Timeline Items List */
             <div className="space-y-3">
               {tables.map(table => {
                 const isExpanded = expandedTableId === table.id
@@ -398,15 +364,14 @@ export function SeatingFinderModal({
                 return (
                   <div
                     key={table.id}
-                    className="border border-border/80 rounded-2xl bg-muted/20 overflow-hidden transition-all shadow-sm"
+                    className="p-4 rounded-xl border bg-card shadow-sm space-y-2"
                   >
-                    <button
-                      type="button"
+                    <div
                       onClick={() => setExpandedTableId(isExpanded ? null : table.id)}
-                      className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-muted/40 transition-colors cursor-pointer select-none"
+                      className="flex items-center justify-between gap-3 text-left cursor-pointer select-none"
                     >
                       <div className="min-w-0 flex items-center gap-3">
-                        <span className="px-2.5 py-1 rounded-xl bg-primary/10 text-primary font-mono text-xs font-black shrink-0 border border-primary/20">
+                        <span className="font-mono text-xs font-extrabold px-2 py-0.5 rounded-md bg-muted text-foreground border">
                           Mesa {table.table_number}
                         </span>
                         <div className="min-w-0">
@@ -414,7 +379,7 @@ export function SeatingFinderModal({
                             {table.table_name || `Mesa ${table.table_number}`}
                           </h4>
                           <p className="text-[11px] text-muted-foreground">
-                            {totalPeople} {totalPeople === 1 ? 'persona' : 'personas'} sentadas
+                            {totalPeople} {totalPeople === 1 ? 'persona' : 'personas'}
                           </p>
                         </div>
                       </div>
@@ -422,51 +387,33 @@ export function SeatingFinderModal({
                       <div className="flex items-center gap-2 shrink-0 text-muted-foreground">
                         {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                       </div>
-                    </button>
+                    </div>
 
                     {isExpanded && (
-                      <div className="p-4 pt-0 border-t border-border/60 bg-background/50 space-y-2">
+                      <div className="pt-2 border-t space-y-2 animate-in fade-in duration-150">
                         {table.notes && (
-                          <p className="text-xs text-muted-foreground italic py-1">
+                          <p className="text-xs text-muted-foreground italic">
                             📍 {table.notes}
                           </p>
                         )}
                         <div className="space-y-1">
                           {table.assignments && table.assignments.length > 0 ? (
-                            table.assignments.map((guest, idx) => {
-                              const seatCount = getAssignmentSeatCount(guest)
+                            table.assignments.map((guest, idx) => (
+                              <div
+                                key={guest.id}
+                                className="p-2 rounded-lg bg-muted/40 border text-xs flex items-center justify-between gap-2"
+                              >
+                                <span className="font-semibold text-foreground truncate">
+                                  {idx + 1}. {guest.guest_name}
+                                </span>
 
-                              return (
-                                <div
-                                  key={guest.id}
-                                  className="p-2 rounded-xl bg-muted/40 border border-border/40 text-xs flex items-center justify-between gap-2"
-                                >
-                                  <div className="min-w-0">
-                                    <span className="font-semibold text-foreground truncate block">
-                                      {idx + 1}. {guest.guest_name}
-                                    </span>
-                                    {guest.companion_names && (
-                                      <span className="text-[10px] text-muted-foreground block font-normal">
-                                        ({guest.companion_names})
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    {seatCount > 1 && (
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">
-                                        👥 {seatCount} plazas
-                                      </span>
-                                    )}
-                                    {guest.dietary_requirements && (
-                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold shrink-0">
-                                        {guest.dietary_requirements}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              )
-                            })
+                                {guest.dietary_requirements && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold shrink-0">
+                                    {guest.dietary_requirements}
+                                  </span>
+                                )}
+                              </div>
+                            ))
                           ) : (
                             <p className="text-xs text-muted-foreground italic py-2">Mesa vacía.</p>
                           )}
@@ -480,19 +427,10 @@ export function SeatingFinderModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-3.5 sm:p-4 bg-muted/40 border-t border-border flex items-center justify-between text-xs text-muted-foreground shrink-0">
-          <span className="flex items-center gap-1.5 font-medium">
-            <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-            <span>¡Que disfrutéis del banquete!</span>
-          </span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onClose} 
-            className="rounded-2xl h-10 px-5 font-bold text-xs sm:text-sm bg-background hover:bg-muted active:scale-95 transition-all cursor-pointer shadow-xs border-border/80"
-          >
-            Cerrar
+        {/* Sticky Footer - Exactly matching Cronograma and Libro de Firmas */}
+        <div className="p-4 border-t bg-background shrink-0">
+          <Button onClick={onClose} variant="outline" className="w-full font-bold rounded-xl py-5 cursor-pointer">
+            Cerrar Buscador de Mesas
           </Button>
         </div>
       </div>
