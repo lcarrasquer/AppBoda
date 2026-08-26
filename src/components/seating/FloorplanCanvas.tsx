@@ -926,39 +926,6 @@ export function FloorplanCanvas({
 
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setZoom(prev => Math.min(3.2, +(prev + 0.25).toFixed(2)))}
-              className="h-8 px-2.5 rounded-xl cursor-pointer"
-              title="Acercar zoom (+)"
-            >
-              <ZoomIn className="w-3.5 h-3.5" />
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setZoom(prev => Math.max(0.5, +(prev - 0.25).toFixed(2)))}
-              className="h-8 px-2.5 rounded-xl cursor-pointer"
-              title="Alejar zoom (-)"
-            >
-              <ZoomOut className="w-3.5 h-3.5" />
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
-              className="h-8 px-2.5 rounded-xl cursor-pointer text-xs font-bold"
-              title="Reiniciar zoom al 100%"
-            >
-              100%
-            </Button>
-
-            <Button
-              type="button"
               size="sm"
               onClick={handleSavePositions}
               disabled={saving || !hasUnsavedChanges}
