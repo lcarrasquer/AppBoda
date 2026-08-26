@@ -130,46 +130,48 @@ export function SeatingFinderModal({
           </button>
         </div>
 
-        {/* Tab switch */}
-        <div className="px-4 pt-2.5 shrink-0 flex items-center gap-2 border-b bg-muted/20 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('search')}
-            className={`pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'search'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Search className="w-3.5 h-3.5" />
-            <span>Buscar Mesa</span>
-          </button>
+        {/* Tab switch - Segmented Pill Control for easy mobile tapping */}
+        <div className="p-3 bg-muted/30 border-b border-border/80 shrink-0">
+          <div className="grid grid-cols-3 gap-1.5 bg-muted/70 p-1 rounded-2xl border border-border/60">
+            <button
+              type="button"
+              onClick={() => setActiveTab('search')}
+              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                activeTab === 'search'
+                  ? 'bg-background text-primary shadow-sm border border-border/60'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Buscar</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('floorplan')}
-            className={`pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'floorplan'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Map className="w-3.5 h-3.5" />
-            <span>Plano 2D 🗺️</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('floorplan')}
+              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                activeTab === 'floorplan'
+                  ? 'bg-background text-primary shadow-sm border border-border/60'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
+              }`}
+            >
+              <Map className="w-3.5 h-3.5" />
+              <span>Plano 2D</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('all')}
-            className={`pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'all'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Todas ({tables.length})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('all')}
+              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                activeTab === 'all'
+                  ? 'bg-background text-primary shadow-sm border border-border/60'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Todas ({tables.length})</span>
+            </button>
+          </div>
         </div>
 
         {/* Content Area */}
