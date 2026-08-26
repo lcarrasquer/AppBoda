@@ -188,14 +188,13 @@ export function SeatingFinderModal({
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Escribe tu nombre, apellidos o acompañante..."
-                  className="pl-10 h-11 rounded-2xl bg-muted/30 border-border shadow-inner text-sm"
-                  autoFocus
+                  placeholder="Escribe tu nombre, apellidos o mesa..."
+                  className="pl-10 h-11 rounded-2xl bg-muted/30 border-border shadow-inner text-base sm:text-sm"
                 />
                 {query && (
                   <button
                     onClick={() => setQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground font-semibold"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground font-semibold cursor-pointer"
                   >
                     Borrar
                   </button>

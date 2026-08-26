@@ -226,17 +226,9 @@ export function FloorplanCanvas({
     if (highlightTableId) {
       setSelectedTableId(highlightTableId)
       setSelectedLandmarkId(null)
-      const hlTable = updated.find(t => t.id === highlightTableId)
-      if (hlTable && hlTable.pos_x && hlTable.pos_y) {
-        // Center view on highlighted table with a nice 1.3x zoom
-        setZoom(1.3)
-        const targetW = CANVAS_WIDTH / 1.3
-        const targetH = CANVAS_HEIGHT / 1.3
-        setPan({
-          x: hlTable.pos_x - CANVAS_WIDTH / 2,
-          y: hlTable.pos_y - CANVAS_HEIGHT / 2
-        })
-      }
+      // Mantener escala al 100% para que no se redimensione la pantalla en móvil
+      setZoom(1)
+      setPan({ x: 0, y: 0 })
     }
   }, [initialTables, highlightTableId])
 
