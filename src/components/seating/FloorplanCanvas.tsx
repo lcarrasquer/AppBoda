@@ -227,7 +227,7 @@ export function FloorplanCanvas({
       const hlTable = updated.find(t => t.id === highlightTableId)
       setSelectedTableId(highlightTableId)
       setSelectedLandmarkId(null)
-      if (hlTable && hlTable.pos_x && hlTable.pos_y) {
+      if (readOnly && hlTable && hlTable.pos_x && hlTable.pos_y) {
         setZoom(1.85)
         setPan({
           x: hlTable.pos_x - CANVAS_WIDTH / 2,
@@ -235,7 +235,7 @@ export function FloorplanCanvas({
         })
       }
     }
-  }, [initialTables, highlightTableId])
+  }, [initialTables, highlightTableId, readOnly])
 
   // Get SVG coordinate from Mouse/Touch Event (supporting exact zoom & pan transformation)
   const getSVGCoords = useCallback((clientX: number, clientY: number) => {
@@ -255,11 +255,11 @@ export function FloorplanCanvas({
     }
   }, [viewBoxX, viewBoxY, viewBoxWidth, viewBoxHeight])
 
-  // Select table and zoom close to it
+  // Select table (auto-zooming ONLY in guest/readOnly mode)
   const selectAndFocusTable = (table: SeatingTable) => {
     setSelectedTableId(table.id)
     setSelectedLandmarkId(null)
-    if (table.pos_x && table.pos_y) {
+    if (readOnly && table.pos_x && table.pos_y) {
       setZoom(1.85)
       setPan({
         x: table.pos_x - CANVAS_WIDTH / 2,
