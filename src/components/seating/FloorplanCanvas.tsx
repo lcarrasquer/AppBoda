@@ -575,14 +575,46 @@ export function FloorplanCanvas({
     }
   }, [isPanning, panStart, pinchDist, viewBoxWidth, viewBoxHeight])
 
-  // Wheel zoom handler
-  const handleWheel = (e: React.WheelEvent) => {
-    if (e.ctrlKey || Math.abs(e.deltaY) > 50) {
+  // Native desktop mouse wheel & trackpad zoom listener
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleNativeWheel = (e: WheelEvent) => {
       e.preventDefault()
-      const factor = e.deltaY < 0 ? 1.15 : 0.85
-      setZoom(prev => Math.min(2.8, Math.max(0.6, +(prev * factor).toFixed(2))))
+      e.stopPropagation()
+      const factor = e.deltaY < 0 ? 1.12 : 0.89
+      setZoom(prev => Math.min(3.2, Math.max(0.5, +(prev * factor).toFixed(2))))
     }
-  }
+
+    container.addEventListener('wheel', handleNativeWheel, { passive: false })
+    return () => {
+      container.removeEventListener('wheel', handleNativeWheel)
+    }
+  }, [])
+
+  // Keyboard shortcut listener (+ / - / 0) for desktop
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // If typing in an input, ignore
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return
+
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault()
+        setZoom(prev => Math.min(3.2, +(prev + 0.25).toFixed(2)))
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault()
+        setZoom(prev => Math.max(0.5, +(prev - 0.25).toFixed(2)))
+      } else if (e.key === '0' || e.key === 'r') {
+        e.preventDefault()
+        setZoom(1)
+        setPan({ x: 0, y: 0 })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   // Save All Positions
   const handleSavePositions = async () => {
@@ -916,13 +948,12 @@ export function FloorplanCanvas({
       <div 
         ref={containerRef}
         className="relative rounded-3xl border-2 border-border/80 overflow-hidden shadow-xl bg-slate-950/5 dark:bg-slate-950/40 backdrop-blur-md"
-        onWheel={handleWheel}
       >
         {/* Floating Zoom & Pan Controls (Always visible in guest and admin view) */}
         <div className="absolute right-3.5 bottom-3.5 z-30 flex items-center gap-1 p-1 rounded-2xl bg-card/90 backdrop-blur-2xl border border-border/80 shadow-2xl shadow-black/20 animate-in fade-in zoom-in-95 duration-200">
           <button
             type="button"
-            onClick={() => setZoom(prev => Math.min(2.8, +(prev + 0.25).toFixed(2)))}
+            onClick={() => setZoom(prev => Math.min(3.2, +(prev + 0.25).toFixed(2)))}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-foreground hover:bg-muted active:scale-90 transition-all cursor-pointer shadow-xs"
             title="Acercar zoom (+)"
             aria-label="Acercar zoom"
@@ -934,14 +965,14 @@ export function FloorplanCanvas({
             type="button"
             onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
             className="px-2.5 h-8 rounded-xl flex items-center justify-center font-mono font-black text-xs text-foreground hover:bg-muted active:scale-95 transition-all cursor-pointer"
-            title="Hacer clic para reiniciar al 100%"
+            title="Hacer clic para reiniciar al 100% (0)"
           >
             {Math.round(zoom * 100)}%
           </button>
 
           <button
             type="button"
-            onClick={() => setZoom(prev => Math.max(0.6, +(prev - 0.25).toFixed(2)))}
+            onClick={() => setZoom(prev => Math.max(0.5, +(prev - 0.25).toFixed(2)))}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-foreground hover:bg-muted active:scale-90 transition-all cursor-pointer shadow-xs"
             title="Alejar zoom (-)"
             aria-label="Alejar zoom"
@@ -955,7 +986,7 @@ export function FloorplanCanvas({
             type="button"
             onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted active:scale-90 transition-all cursor-pointer"
-            title="Centrar plano completo"
+            title="Centrar plano completo (0)"
             aria-label="Centrar plano"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -963,12 +994,10 @@ export function FloorplanCanvas({
         </div>
 
         {/* Zoom & Navigation Hint for Mobile / Desktop */}
-        {zoom > 1 && (
-          <div className="absolute left-3.5 bottom-3.5 z-20 pointer-events-none hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/85 backdrop-blur-md border border-border text-[11px] font-bold text-muted-foreground shadow-md animate-in fade-in duration-200">
-            <Move className="w-3 h-3 text-primary" />
-            <span>Arrastra para desplazarte por la sala</span>
-          </div>
-        )}
+        <div className="absolute left-3.5 bottom-3.5 z-20 pointer-events-none hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-card/85 backdrop-blur-md border border-border text-[11px] font-bold text-muted-foreground shadow-md animate-in fade-in duration-200">
+          <Move className="w-3 h-3 text-primary" />
+          <span>{zoom > 1 ? 'Arrastra para desplazarte' : 'Rueda del ratón o +/- para hacer zoom'}</span>
+        </div>
 
         <div className="relative w-full overflow-hidden">
           <svg
@@ -979,6 +1008,11 @@ export function FloorplanCanvas({
             }`}
             onMouseDown={handleCanvasMouseDown}
             onTouchStart={handleCanvasTouchStart}
+            onDoubleClick={(e) => {
+              e.preventDefault()
+              setZoom(prev => prev < 1.8 ? 2 : 1)
+              if (zoom >= 1.8) setPan({ x: 0, y: 0 })
+            }}
             onClick={() => {
               setSelectedTableId(null)
               setSelectedLandmarkId(null)
