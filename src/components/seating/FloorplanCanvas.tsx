@@ -1375,8 +1375,8 @@ export function FloorplanCanvas({
           </div>
         )}
 
-        {/* Floating Table Inspector Drawer */}
-        {selectedTable && (
+        {/* Floating Table Inspector Drawer (Admin only) */}
+        {selectedTable && !readOnly && (
           <div 
             className={`absolute top-4 ${
               (selectedTable.pos_x || 0) > CANVAS_WIDTH * 0.48 ? 'left-4' : 'right-4'
@@ -1405,28 +1405,26 @@ export function FloorplanCanvas({
             </div>
 
             {/* Quick Shape & Rotation Controls */}
-            {!readOnly && (
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleToggleShape(selectedTable.id)}
-                  className="text-xs font-semibold rounded-xl h-8 gap-1.5"
-                >
-                  {selectedTable.shape === 'rectangle' ? <Circle className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-                  <span>{selectedTable.shape === 'rectangle' ? 'Hacer Redonda' : 'Hacer Rectangular'}</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleRotateTable(selectedTable.id)}
-                  className="text-xs font-semibold rounded-xl h-8 gap-1.5"
-                >
-                  <RotateCw className="w-3.5 h-3.5" />
-                  <span>Girar 45°</span>
-                </Button>
-              </div>
-            )}
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleToggleShape(selectedTable.id)}
+                className="text-xs font-semibold rounded-xl h-8 gap-1.5"
+              >
+                {selectedTable.shape === 'rectangle' ? <Circle className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                <span>{selectedTable.shape === 'rectangle' ? 'Hacer Redonda' : 'Hacer Rectangular'}</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleRotateTable(selectedTable.id)}
+                className="text-xs font-semibold rounded-xl h-8 gap-1.5"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span>Girar 45°</span>
+              </Button>
+            </div>
 
             {/* Capacity Meter */}
             <div className="flex items-center justify-between text-xs font-semibold px-1">
@@ -1467,7 +1465,7 @@ export function FloorplanCanvas({
             </div>
 
             {/* Action Buttons for admin */}
-            {!readOnly && onEditTable && (
+            {onEditTable && (
               <div className="pt-2 border-t border-border">
                 <Button
                   size="sm"
@@ -1484,6 +1482,54 @@ export function FloorplanCanvas({
         )}
 
       </div>
+
+      {/* Guest View: Selected Table Details Card placed cleanly BELOW canvas (so it never covers the map) */}
+      {readOnly && selectedTable && (
+        <div className="mt-3 p-4 bg-card rounded-2xl border-2 border-primary/40 shadow-lg space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between border-b border-border pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-extrabold px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20">
+                Mesa {selectedTable.table_number}
+              </span>
+              <h4 className="font-bold text-base text-foreground">
+                {selectedTable.table_name || `Mesa ${selectedTable.table_number}`}
+              </h4>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedTableId(null)}
+              className="text-xs font-bold text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-lg hover:bg-muted cursor-pointer transition-colors"
+            >
+              Ocultar info ✕
+            </button>
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Users className="w-3 h-3 text-primary" />
+              <span>Comensales en esta mesa ({selectedTablePeople.length} personas):</span>
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+              {selectedTablePeople.map((p, idx) => (
+                <div
+                  key={p.uniqueId}
+                  className="p-2 rounded-xl bg-muted/40 border border-border/50 text-xs flex items-center justify-between gap-1.5"
+                >
+                  <span className="font-medium text-foreground truncate">
+                    {idx + 1}. {p.name}
+                    {p.isCompanion && <span className="text-[10px] text-muted-foreground ml-1">({p.parentGuestName})</span>}
+                  </span>
+                  {p.dietary && (
+                    <span title={p.dietary}>
+                      {renderDietaryIcon(p.dietary)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

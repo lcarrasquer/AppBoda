@@ -110,7 +110,7 @@ export function SeatingFinderModal({
       onClick={onClose}
     >
       <div 
-        className="w-full h-full sm:h-auto sm:max-h-[88vh] sm:max-w-lg bg-background sm:rounded-2xl sm:border sm:border-white/40 dark:sm:border-white/10 sm:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl lg:max-w-3xl bg-background sm:rounded-2xl sm:border sm:border-white/40 dark:sm:border-white/10 sm:shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header - Matching Cronograma & Guestbook */}
