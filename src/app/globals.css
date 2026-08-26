@@ -230,3 +230,12 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Prevenir auto-zoom de Safari e iOS en todos los campos de entrada */
+@media screen and (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
