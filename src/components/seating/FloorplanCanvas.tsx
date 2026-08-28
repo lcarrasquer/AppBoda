@@ -753,13 +753,21 @@ export function FloorplanCanvas({
     const countSameType = landmarks.filter(l => l.type === tpl.type).length
     const label = countSameType > 0 ? `${tpl.name} ${countSameType + 1}` : tpl.name
 
+    // Calculate smart centered coordinates in the current viewport
+    const cascadeOffset = (landmarks.length % 5) * 20
+    const idealX = viewBoxX + viewBoxWidth / 2 - tpl.width / 2 + cascadeOffset
+    const idealY = viewBoxY + viewBoxHeight / 2 - tpl.height / 2 + cascadeOffset
+
+    const clampedX = Math.round(Math.max(20, Math.min(CANVAS_WIDTH - tpl.width - 20, idealX)))
+    const clampedY = Math.round(Math.max(20, Math.min(CANVAS_HEIGHT - tpl.height - 20, idealY)))
+
     const newLandmark: FloorplanLandmark = {
       id: `landmark_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       type: tpl.type,
       name: label,
       subtitle: tpl.subtitle,
-      x: 320 + ((landmarks.length * 25) % 180),
-      y: 200 + ((landmarks.length * 25) % 180),
+      x: clampedX,
+      y: clampedY,
       width: tpl.width,
       height: tpl.height,
       rotation: 0,
@@ -770,6 +778,7 @@ export function FloorplanCanvas({
     setSelectedLandmarkId(newLandmark.id)
     setSelectedTableId(null)
     setShowAddElementMenu(false)
+    setHasUnsavedChanges(true)
     toast.success(`Se ha añadido ${tpl.name} al salón`)
   }
 
