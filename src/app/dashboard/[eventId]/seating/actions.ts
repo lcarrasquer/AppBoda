@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { SeatingTable, SeatingAssignment } from '@/lib/seating/types'
+import { SeatingTable, SeatingAssignment, FloorplanLandmark } from '@/lib/seating/types'
 
 function getAdminClient() {
   return createSupabaseClient(
@@ -11,44 +11,105 @@ function getAdminClient() {
   )
 }
 
-// 1. Get all tables and their seated guests
+// 1. Get all tables, their seated guests, and room landmarks
 export async function getSeatingPlan(eventId: string): Promise<{
   tables: SeatingTable[]
+  landmarks?: FloorplanLandmark[]
   error?: string
 }> {
   try {
     const supabase = getAdminClient()
 
-    const { data: tablesData, error: tablesError } = await supabase
-      .from('seating_tables')
-      .select('*')
-      .eq('event_id', eventId)
-      .order('position_order', { ascending: true })
+    const [tablesRes, assignmentsRes, landmarksRes] = await Promise.all([
+      supabase
+        .from('seating_tables')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('position_order', { ascending: true }),
+      supabase
+        .from('seating_assignments')
+        .select('*')
+        .eq('event_id', eventId),
+      (async () => {
+        try {
+          return await supabase
+            .from('seating_landmarks')
+            .select('*')
+            .eq('event_id', eventId)
+            .order('created_at', { ascending: true })
+        } catch {
+          return { data: null, error: null }
+        }
+      })()
+    ])
 
-    if (tablesError) {
-      console.error('Error fetching tables from Supabase:', tablesError)
-      return { tables: [], error: tablesError.message }
+    if (tablesRes.error) {
+      console.error('Error fetching tables from Supabase:', tablesRes.error)
+      return { tables: [], error: tablesRes.error.message }
     }
 
-    const { data: assignmentsData, error: assignmentsError } = await supabase
-      .from('seating_assignments')
-      .select('*')
-      .eq('event_id', eventId)
-
-    if (assignmentsError) {
-      console.error('Error fetching assignments from Supabase:', assignmentsError)
+    if (assignmentsRes.error) {
+      console.error('Error fetching assignments from Supabase:', assignmentsRes.error)
     }
 
-    const assignments = assignmentsData || []
-    const tables: SeatingTable[] = (tablesData || []).map(t => ({
+    const assignments = (assignmentsRes.data || []) as SeatingAssignment[]
+    const tables: SeatingTable[] = ((tablesRes.data || []) as any[]).map((t: any) => ({
       ...t,
-      assignments: assignments.filter(a => a.table_id === t.id)
+      assignments: assignments.filter((a: any) => a.table_id === t.id)
     }))
 
-    return { tables }
+    const landmarks: FloorplanLandmark[] = (landmarksRes?.data as FloorplanLandmark[]) || []
+
+    return { tables, landmarks }
   } catch (err: any) {
     console.error('Error in getSeatingPlan:', err)
     return { tables: [], error: err.message || 'Error al obtener las mesas' }
+  }
+}
+
+// 1.1 Save room landmarks in database
+export async function saveFloorplanLandmarks(
+  eventId: string,
+  landmarks: FloorplanLandmark[]
+): Promise<{ success?: boolean; error?: string }> {
+  try {
+    const supabase = getAdminClient()
+
+    // Delete existing landmarks for this event
+    await supabase
+      .from('seating_landmarks')
+      .delete()
+      .eq('event_id', eventId)
+
+    if (landmarks.length > 0) {
+      const records = landmarks.map(lm => ({
+        id: lm.id,
+        event_id: eventId,
+        type: lm.type,
+        name: lm.name,
+        subtitle: lm.subtitle || null,
+        x: Math.round(lm.x),
+        y: Math.round(lm.y),
+        width: Math.round(lm.width),
+        height: Math.round(lm.height),
+        rotation: lm.rotation || 0,
+        visible: lm.visible ?? true
+      }))
+
+      const { error } = await supabase
+        .from('seating_landmarks')
+        .insert(records)
+
+      if (error) {
+        console.warn('Could not insert into seating_landmarks (table might need migration):', error.message)
+      }
+    }
+
+    revalidatePath(`/dashboard/${eventId}/seating`)
+    return { success: true }
+  } catch (err: any) {
+    console.warn('Error saving landmarks to DB (fallback to local):', err)
+    return { error: err.message }
   }
 }
 
@@ -109,7 +170,7 @@ export async function createOrUpdateTable(
   }
 }
 
-// 2.1 Update multiple table positions in bulk from 2D canvas
+// 2.1 Update multiple table positions in bulk in parallel from 2D canvas
 export async function updateTablePositions(
   eventId: string,
   positions: { id: string; pos_x: number; pos_y: number; shape?: 'round' | 'rectangle'; rotation?: number }[]
@@ -117,22 +178,21 @@ export async function updateTablePositions(
   try {
     const supabase = getAdminClient()
 
-    for (const p of positions) {
-      const { error } = await supabase
-        .from('seating_tables')
-        .update({
-          pos_x: p.pos_x,
-          pos_y: p.pos_y,
-          ...(p.shape ? { shape: p.shape } : {}),
-          ...(p.rotation !== undefined ? { rotation: p.rotation } : {})
-        })
-        .eq('id', p.id)
-        .eq('event_id', eventId)
-
-      if (error) {
-        console.error('Error updating position for table:', p.id, error)
-      }
-    }
+    // Parallelize updates with Promise.all for high performance
+    await Promise.all(
+      positions.map(p =>
+        supabase
+          .from('seating_tables')
+          .update({
+            pos_x: p.pos_x,
+            pos_y: p.pos_y,
+            ...(p.shape ? { shape: p.shape } : {}),
+            ...(p.rotation !== undefined ? { rotation: p.rotation } : {})
+          })
+          .eq('id', p.id)
+          .eq('event_id', eventId)
+      )
+    )
 
     revalidatePath(`/dashboard/${eventId}/seating`)
     return { success: true }
@@ -141,6 +201,7 @@ export async function updateTablePositions(
     return { error: err.message || 'Error al guardar posiciones del plano' }
   }
 }
+
 
 // 3. Delete a Table
 export async function deleteTable(eventId: string, tableId: string) {

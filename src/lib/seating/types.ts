@@ -137,3 +137,89 @@ export function getExpandedTableGuests(table: SeatingTable): ExpandedSeatedPerso
 export function getTablePeopleCount(table: SeatingTable): number {
   return getExpandedTableGuests(table).length
 }
+
+export type LandmarkType = 'dancefloor' | 'stage' | 'bar' | 'entrance' | 'dj' | 'photocall' | 'buffet' | 'chillout' | 'custom'
+
+export interface FloorplanLandmark {
+  id: string
+  event_id?: string
+  type: LandmarkType
+  name: string
+  subtitle?: string
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation?: number
+  visible: boolean
+}
+
+export interface LandmarkTemplate {
+  type: LandmarkType
+  name: string
+  subtitle?: string
+  width: number
+  height: number
+  icon: string
+  color: string
+}
+
+export const LANDMARK_TEMPLATES: LandmarkTemplate[] = [
+  { type: 'dancefloor', name: '💃 PISTA DE BAILE 🕺', subtitle: 'Zona de Baile', width: 180, height: 120, icon: '💃', color: 'sky' },
+  { type: 'bar', name: '🍸 BARRA LIBRE', width: 160, height: 40, icon: '🍸', color: 'emerald' },
+  { type: 'stage', name: '🎪 PRESIDENCIA / ESCENARIO', width: 280, height: 44, icon: '🎪', color: 'primary' },
+  { type: 'dj', name: '🎧 CABINA DJ', width: 100, height: 60, icon: '🎧', color: 'purple' },
+  { type: 'photocall', name: '📸 PHOTOCALL', width: 120, height: 70, icon: '📸', color: 'amber' },
+  { type: 'buffet', name: '🍽️ BUFFET / CÓCTEL', width: 180, height: 48, icon: '🍽️', color: 'rose' },
+  { type: 'chillout', name: '🛋️ ZONA CHILL OUT', width: 150, height: 90, icon: '🛋️', color: 'indigo' },
+  { type: 'entrance', name: '🚪 ENTRADA PRINCIPAL', width: 150, height: 38, icon: '🚪', color: 'slate' }
+]
+
+export const DEFAULT_LANDMARKS: FloorplanLandmark[] = [
+  {
+    id: 'landmark_stage',
+    type: 'stage',
+    name: '🎪 PRESIDENCIA / ESCENARIO',
+    x: 300,
+    y: 20,
+    width: 300,
+    height: 44,
+    rotation: 0,
+    visible: true
+  },
+  {
+    id: 'landmark_dancefloor',
+    type: 'dancefloor',
+    name: '💃 PISTA DE BAILE 🕺',
+    subtitle: 'Zona de Baile',
+    x: 360,
+    y: 260,
+    width: 180,
+    height: 120,
+    rotation: 0,
+    visible: true
+  },
+  {
+    id: 'landmark_entrance',
+    type: 'entrance',
+    name: '🚪 ENTRADA PRINCIPAL',
+    x: 50,
+    y: 580,
+    width: 160,
+    height: 38,
+    rotation: 0,
+    visible: true
+  },
+  {
+    id: 'landmark_bar',
+    type: 'bar',
+    name: '🍸 BARRA LIBRE',
+    x: 680,
+    y: 580,
+    width: 160,
+    height: 38,
+    rotation: 0,
+    visible: true
+  }
+]
+

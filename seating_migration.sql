@@ -49,3 +49,31 @@ create policy "owner_manage_seating_assignments" on seating_assignments for all 
 create policy "public_read_seating_assignments" on seating_assignments for select using (
   exists (select 1 from events e where e.id = event_id and e.status = 'active')
 );
+
+-- ============================================
+-- TABLA: seating_landmarks (Pistas de baile, barras, photocall, etc.)
+-- ============================================
+create table if not exists seating_landmarks (
+  id text primary key,
+  event_id uuid references events(id) on delete cascade not null,
+  type text not null,
+  name text not null,
+  subtitle text,
+  x numeric default 0,
+  y numeric default 0,
+  width numeric default 180,
+  height numeric default 120,
+  rotation numeric default 0,
+  visible boolean default true,
+  created_at timestamptz default now()
+);
+
+alter table seating_landmarks enable row level security;
+
+create policy "owner_manage_seating_landmarks" on seating_landmarks for all using (
+  exists (select 1 from events e where e.id = event_id and e.owner_id = auth.uid())
+);
+create policy "public_read_seating_landmarks" on seating_landmarks for select using (
+  exists (select 1 from events e where e.id = event_id and e.status = 'active')
+);
+

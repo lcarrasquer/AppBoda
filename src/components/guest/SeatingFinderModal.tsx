@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { SeatingTable, SeatingAssignment, getAssignmentSeatCount, getTablePeopleCount } from '@/lib/seating/types'
+import { SeatingTable, SeatingAssignment, FloorplanLandmark, getAssignmentSeatCount, getTablePeopleCount } from '@/lib/seating/types'
 import { getEventSeatingPlan } from '@/app/e/[slug]/actions'
 import { FloorplanCanvas } from '@/components/seating/FloorplanCanvas'
 import { Input } from '@/components/ui/input'
@@ -18,12 +18,12 @@ import {
   Wheat, 
   Salad, 
   Baby, 
-  AlertCircle,
-  PartyPopper,
-  Layers,
-  Heart,
-  UserCheck,
-  Map
+  AlertCircle, 
+  PartyPopper, 
+  Layers, 
+  Heart, 
+  UserCheck, 
+  Map 
 } from 'lucide-react'
 
 interface SeatingFinderModalProps {
@@ -41,6 +41,7 @@ export function SeatingFinderModal({
 }: SeatingFinderModalProps) {
   const [query, setQuery] = useState(currentGuestName)
   const [tables, setTables] = useState<SeatingTable[]>([])
+  const [landmarks, setLandmarks] = useState<FloorplanLandmark[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'search' | 'all' | 'floorplan'>('search')
   const [highlightedTableId, setHighlightedTableId] = useState<string | null>(null)
@@ -58,6 +59,9 @@ export function SeatingFinderModal({
       const res = await getEventSeatingPlan(eventId)
       if (res.tables) {
         setTables(res.tables)
+      }
+      if (res.landmarks) {
+        setLandmarks(res.landmarks)
       }
     } catch (err) {
       console.error('Error loading seating plan:', err)
@@ -363,6 +367,7 @@ export function SeatingFinderModal({
               <FloorplanCanvas
                 eventId={eventId}
                 tables={tables}
+                initialLandmarks={landmarks}
                 readOnly={true}
                 highlightTableId={highlightedTableId || undefined}
               />

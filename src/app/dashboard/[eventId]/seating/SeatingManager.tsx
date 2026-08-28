@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { SeatingTable, SeatingAssignment, getAssignmentSeatCount, getTablePeopleCount, getExpandedTableGuests } from '@/lib/seating/types'
+import { SeatingTable, SeatingAssignment, FloorplanLandmark, getAssignmentSeatCount, getTablePeopleCount, getExpandedTableGuests } from '@/lib/seating/types'
 import { 
   createOrUpdateTable, 
   deleteTable, 
@@ -50,6 +50,7 @@ interface SeatingManagerProps {
   eventId: string
   event: any
   initialTables: SeatingTable[]
+  initialLandmarks?: FloorplanLandmark[]
 }
 
 const DIETARY_PRESETS = [
@@ -62,8 +63,9 @@ const DIETARY_PRESETS = [
   { label: '🥛 Sin Lactosa', value: 'Sin Lactosa' },
 ]
 
-export function SeatingManager({ eventId, event, initialTables }: SeatingManagerProps) {
+export function SeatingManager({ eventId, event, initialTables, initialLandmarks }: SeatingManagerProps) {
   const [tables, setTables] = useState<SeatingTable[]>(initialTables)
+  const [landmarks, setLandmarks] = useState<FloorplanLandmark[]>(initialLandmarks || [])
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'grid' | 'floorplan'>('grid')
 
@@ -584,6 +586,7 @@ export function SeatingManager({ eventId, event, initialTables }: SeatingManager
         <FloorplanCanvas
           eventId={eventId}
           tables={tables}
+          initialLandmarks={landmarks}
           onEditTable={handleOpenEditTable}
           onAddGuest={handleOpenAddGuest}
         />

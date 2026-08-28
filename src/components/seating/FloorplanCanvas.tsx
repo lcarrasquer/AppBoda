@@ -1,8 +1,25 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { SeatingTable, getTablePeopleCount, getExpandedTableGuests } from '@/lib/seating/types'
-import { updateTablePositions } from '@/app/dashboard/[eventId]/seating/actions'
+import { 
+  SeatingTable, 
+  FloorplanLandmark, 
+  LandmarkTemplate, 
+  LANDMARK_TEMPLATES, 
+  DEFAULT_LANDMARKS,
+  getTablePeopleCount, 
+  getExpandedTableGuests 
+} from '@/lib/seating/types'
+import { 
+  calculateSnappingGuides, 
+  detectCollisions, 
+  exportFloorplanToImage, 
+  exportFloorplanToSvg, 
+  printFloorplan,
+  SnapGuide, 
+  FloorplanSnapshot 
+} from '@/lib/seating/floorplanUtils'
+import { updateTablePositions, saveFloorplanLandmarks } from '@/app/dashboard/[eventId]/seating/actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
@@ -21,112 +38,36 @@ import {
   RotateCcw, 
   Eye, 
   Grid, 
-  X,
-  MapPin,
-  Utensils,
-  Salad,
-  Wheat,
-  Baby,
-  AlertCircle,
-  Music,
-  Camera,
-  Plus,
-  Sliders,
-  Check,
-  Trash2,
-  Copy,
-  PlusCircle,
-  Minus,
-  Scaling
+  X, 
+  MapPin, 
+  Utensils, 
+  Salad, 
+  Wheat, 
+  Baby, 
+  AlertCircle, 
+  Music, 
+  Camera, 
+  Plus, 
+  Sliders, 
+  Check, 
+  Trash2, 
+  Copy, 
+  PlusCircle, 
+  Minus, 
+  Scaling, 
+  Undo2, 
+  Redo2, 
+  Download, 
+  Printer, 
+  FileImage, 
+  AlertTriangle, 
+  Magnet 
 } from 'lucide-react'
-
-export type LandmarkType = 'dancefloor' | 'stage' | 'bar' | 'entrance' | 'dj' | 'photocall' | 'buffet' | 'chillout' | 'custom'
-
-export interface FloorplanLandmark {
-  id: string
-  type: LandmarkType
-  name: string
-  subtitle?: string
-  x: number
-  y: number
-  width: number
-  height: number
-  rotation?: number
-  visible: boolean
-}
-
-export interface LandmarkTemplate {
-  type: LandmarkType
-  name: string
-  subtitle?: string
-  width: number
-  height: number
-  icon: string
-  color: string
-}
-
-export const LANDMARK_TEMPLATES: LandmarkTemplate[] = [
-  { type: 'dancefloor', name: '💃 PISTA DE BAILE 🕺', subtitle: 'Zona de Baile', width: 180, height: 120, icon: '💃', color: 'sky' },
-  { type: 'bar', name: '🍸 BARRA LIBRE', width: 160, height: 40, icon: '🍸', color: 'emerald' },
-  { type: 'stage', name: '🎪 PRESIDENCIA / ESCENARIO', width: 280, height: 44, icon: '🎪', color: 'primary' },
-  { type: 'dj', name: '🎧 CABINA DJ', width: 100, height: 60, icon: '🎧', color: 'purple' },
-  { type: 'photocall', name: '📸 PHOTOCALL', width: 120, height: 70, icon: '📸', color: 'amber' },
-  { type: 'buffet', name: '🍽️ BUFFET / CÓCTEL', width: 180, height: 48, icon: '🍽️', color: 'rose' },
-  { type: 'chillout', name: '🛋️ ZONA CHILL OUT', width: 150, height: 90, icon: '🛋️', color: 'indigo' },
-  { type: 'entrance', name: '🚪 ENTRADA PRINCIPAL', width: 150, height: 38, icon: '🚪', color: 'slate' }
-]
-
-const DEFAULT_LANDMARKS: FloorplanLandmark[] = [
-  {
-    id: 'landmark_stage',
-    type: 'stage',
-    name: '🎪 PRESIDENCIA / ESCENARIO',
-    x: 300,
-    y: 20,
-    width: 300,
-    height: 44,
-    rotation: 0,
-    visible: true
-  },
-  {
-    id: 'landmark_dancefloor',
-    type: 'dancefloor',
-    name: '💃 PISTA DE BAILE 🕺',
-    subtitle: 'Zona de Baile',
-    x: 360,
-    y: 260,
-    width: 180,
-    height: 120,
-    rotation: 0,
-    visible: true
-  },
-  {
-    id: 'landmark_entrance',
-    type: 'entrance',
-    name: '🚪 ENTRADA PRINCIPAL',
-    x: 50,
-    y: 580,
-    width: 160,
-    height: 38,
-    rotation: 0,
-    visible: true
-  },
-  {
-    id: 'landmark_bar',
-    type: 'bar',
-    name: '🍸 BARRA LIBRE',
-    x: 680,
-    y: 580,
-    width: 160,
-    height: 38,
-    rotation: 0,
-    visible: true
-  }
-]
 
 interface FloorplanCanvasProps {
   eventId: string
   tables: SeatingTable[]
+  initialLandmarks?: FloorplanLandmark[]
   readOnly?: boolean
   highlightTableId?: string
   onEditTable?: (table: SeatingTable) => void
@@ -139,23 +80,23 @@ const CANVAS_HEIGHT = 650
 export function FloorplanCanvas({
   eventId,
   tables: initialTables,
+  initialLandmarks,
   readOnly = false,
   highlightTableId,
   onEditTable,
   onAddGuest
 }: FloorplanCanvasProps) {
-  // Local state for tables with position coordinates
+  // State for tables and landmarks
   const [tables, setTables] = useState<SeatingTable[]>([])
-  const [landmarks, setLandmarks] = useState<FloorplanLandmark[]>(DEFAULT_LANDMARKS)
+  const [landmarks, setLandmarks] = useState<FloorplanLandmark[]>(initialLandmarks && initialLandmarks.length > 0 ? initialLandmarks : DEFAULT_LANDMARKS)
   
+  // Selection
   const [selectedTableId, setSelectedTableId] = useState<string | null>(highlightTableId || null)
   const [selectedLandmarkId, setSelectedLandmarkId] = useState<string | null>(null)
   
-  // Dragging state supporting both tables and landmarks
+  // Dragging & Resizing state
   const [draggingItem, setDraggingItem] = useState<{ type: 'table' | 'landmark'; id: string } | null>(null)
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-
-  // Interactive Resizing state for landmarks
   const [resizingLandmark, setResizingLandmark] = useState<{
     id: string
     handle: 'br' | 'r' | 'b'
@@ -164,27 +105,51 @@ export function FloorplanCanvas({
     startW: number
     startH: number
   } | null>(null)
+
+  // Smart Magnetic Snapping
+  const [snappingEnabled, setSnappingEnabled] = useState(true)
+  const [activeGuides, setActiveGuides] = useState<SnapGuide[]>([])
+
+  // Undo / Redo History
+  const [undoStack, setUndoStack] = useState<FloorplanSnapshot[]>([])
+  const [redoStack, setRedoStack] = useState<FloorplanSnapshot[]>([])
+  const dragStartSnapshot = useRef<FloorplanSnapshot | null>(null)
   
+  // UI & Canvas Controls
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState<{ clientX: number; clientY: number; panX: number; panY: number } | null>(null)
   const [pinchDist, setPinchDist] = useState<{ startDist: number; startZoom: number } | null>(null)
   const [showAddElementMenu, setShowAddElementMenu] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const rafRef = useRef<number | null>(null)
 
-  // Calculate dynamic ViewBox dimensions based on zoom & pan
+  // Dynamic ViewBox dimensions
   const viewBoxWidth = CANVAS_WIDTH / zoom
   const viewBoxHeight = CANVAS_HEIGHT / zoom
   const viewBoxX = (CANVAS_WIDTH - viewBoxWidth) / 2 + pan.x
   const viewBoxY = (CANVAS_HEIGHT - viewBoxHeight) / 2 + pan.y
 
-  // Load landmarks from localStorage if available
+  // Push snapshot into undo stack helper
+  const pushUndo = useCallback((snapshot: FloorplanSnapshot) => {
+    setUndoStack(prev => [...prev.slice(-25), snapshot]) // Keep last 25 actions
+    setRedoStack([])
+    setHasUnsavedChanges(true)
+  }, [])
+
+  // Load landmarks (from props, then localStorage, then default)
   useEffect(() => {
+    if (initialLandmarks && initialLandmarks.length > 0) {
+      setLandmarks(initialLandmarks)
+      return
+    }
     try {
       const stored = localStorage.getItem(`floorplan_landmarks_${eventId}`)
       if (stored) {
@@ -194,17 +159,16 @@ export function FloorplanCanvas({
         }
       }
     } catch {
-      // ignore JSON parse errors
+      // ignore
     }
-  }, [eventId])
+  }, [eventId, initialLandmarks])
 
-  // Initialize or auto-assign positions if none exist
+  // Initialize or auto-assign positions for tables if none exist
   useEffect(() => {
     const updated = initialTables.map((t, idx) => {
       let x = t.pos_x
       let y = t.pos_y
 
-      // Auto-assign nice default grid positions if undefined
       if (x === undefined || x === null || y === undefined || y === null) {
         const cols = 3
         const row = Math.floor(idx / cols)
@@ -237,7 +201,30 @@ export function FloorplanCanvas({
     }
   }, [initialTables, highlightTableId, readOnly])
 
-  // Get SVG coordinate from Mouse/Touch Event (supporting exact zoom & pan transformation)
+  // Undo / Redo handlers
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return
+    const prev = undoStack[undoStack.length - 1]
+    setUndoStack(s => s.slice(0, -1))
+    setRedoStack(s => [...s, { tables, landmarks }])
+    setTables(prev.tables)
+    setLandmarks(prev.landmarks)
+    setHasUnsavedChanges(true)
+    toast.info('Acción deshecha')
+  }, [undoStack, tables, landmarks])
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return
+    const next = redoStack[redoStack.length - 1]
+    setRedoStack(s => s.slice(0, -1))
+    setUndoStack(s => [...s, { tables, landmarks }])
+    setTables(next.tables)
+    setLandmarks(next.landmarks)
+    setHasUnsavedChanges(true)
+    toast.info('Acción rehecha')
+  }, [redoStack, tables, landmarks])
+
+  // Convert client coordinates to SVG coordinates
   const getSVGCoords = useCallback((clientX: number, clientY: number) => {
     if (!svgRef.current) return { x: 0, y: 0 }
     const pt = svgRef.current.createSVGPoint()
@@ -255,7 +242,7 @@ export function FloorplanCanvas({
     }
   }, [viewBoxX, viewBoxY, viewBoxWidth, viewBoxHeight])
 
-  // Select table (auto-zooming ONLY in guest/readOnly mode)
+  // Focus table helper
   const selectAndFocusTable = (table: SeatingTable) => {
     setSelectedTableId(table.id)
     setSelectedLandmarkId(null)
@@ -268,7 +255,7 @@ export function FloorplanCanvas({
     }
   }
 
-  // Canvas background Pan handlers (drag to move view)
+  // Pan handlers
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0 || draggingItem || resizingLandmark) return
     setIsPanning(true)
@@ -282,7 +269,6 @@ export function FloorplanCanvas({
 
   const handleCanvasTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
-      // Pinch to Zoom start
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
@@ -305,12 +291,13 @@ export function FloorplanCanvas({
     }
   }
 
-  // 1. Table Drag & Click Handlers
+  // Drag start handlers
   const handleTableMouseDown = (e: React.MouseEvent, table: SeatingTable) => {
     e.stopPropagation()
     selectAndFocusTable(table)
     if (readOnly || resizingLandmark) return
 
+    dragStartSnapshot.current = { tables: [...tables], landmarks: [...landmarks] }
     const coords = getSVGCoords(e.clientX, e.clientY)
     setDraggingItem({ type: 'table', id: table.id })
     setDragOffset({
@@ -324,6 +311,7 @@ export function FloorplanCanvas({
     selectAndFocusTable(table)
     if (readOnly || resizingLandmark) return
 
+    dragStartSnapshot.current = { tables: [...tables], landmarks: [...landmarks] }
     const touch = e.touches[0]
     const coords = getSVGCoords(touch.clientX, touch.clientY)
     setDraggingItem({ type: 'table', id: table.id })
@@ -333,10 +321,10 @@ export function FloorplanCanvas({
     })
   }
 
-  // 2. Landmark Drag Handlers
   const handleLandmarkMouseDown = (e: React.MouseEvent, landmark: FloorplanLandmark) => {
     if (readOnly || resizingLandmark) return
     e.stopPropagation()
+    dragStartSnapshot.current = { tables: [...tables], landmarks: [...landmarks] }
     const coords = getSVGCoords(e.clientX, e.clientY)
     setDraggingItem({ type: 'landmark', id: landmark.id })
     setSelectedLandmarkId(landmark.id)
@@ -349,6 +337,7 @@ export function FloorplanCanvas({
 
   const handleLandmarkTouchStart = (e: React.TouchEvent, landmark: FloorplanLandmark) => {
     if (readOnly || resizingLandmark) return
+    dragStartSnapshot.current = { tables: [...tables], landmarks: [...landmarks] }
     const touch = e.touches[0]
     const coords = getSVGCoords(touch.clientX, touch.clientY)
     setDraggingItem({ type: 'landmark', id: landmark.id })
@@ -360,10 +349,11 @@ export function FloorplanCanvas({
     })
   }
 
-  // 3. Interactive Resize Handle Drag Handlers
+  // Resize start handlers
   const handleStartResize = (e: React.MouseEvent, landmark: FloorplanLandmark, handle: 'br' | 'r' | 'b') => {
     if (readOnly) return
     e.stopPropagation()
+    dragStartSnapshot.current = { tables: [...tables], landmarks: [...landmarks] }
     const coords = getSVGCoords(e.clientX, e.clientY)
     setResizingLandmark({
       id: landmark.id,
@@ -379,6 +369,7 @@ export function FloorplanCanvas({
   const handleStartResizeTouch = (e: React.TouchEvent, landmark: FloorplanLandmark, handle: 'br' | 'r' | 'b') => {
     if (readOnly) return
     e.stopPropagation()
+    dragStartSnapshot.current = { tables: [...tables], landmarks: [...landmarks] }
     const touch = e.touches[0]
     const coords = getSVGCoords(touch.clientX, touch.clientY)
     setResizingLandmark({
@@ -392,136 +383,137 @@ export function FloorplanCanvas({
     setSelectedLandmarkId(landmark.id)
   }
 
-  // Global window listeners for drag & drop AND interactive resizing
+  // Optimized MouseMove & TouchMove using requestAnimationFrame
   useEffect(() => {
-    if ((!draggingItem && !resizingLandmark) || readOnly) return
+    if ((!draggingItem && !resizingLandmark) || readOnly) {
+      setActiveGuides([])
+      return
+    }
 
-    const handleWindowMouseMove = (e: MouseEvent) => {
-      const coords = getSVGCoords(e.clientX, e.clientY)
+    const handlePointerMove = (clientX: number, clientY: number) => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
 
-      // Handle Resizing
-      if (resizingLandmark) {
-        const deltaX = coords.x - resizingLandmark.startX
-        const deltaY = coords.y - resizingLandmark.startY
+      rafRef.current = requestAnimationFrame(() => {
+        const coords = getSVGCoords(clientX, clientY)
 
-        setLandmarks(prev => prev.map(lm => {
-          if (lm.id !== resizingLandmark.id) return lm
+        // 1. Resizing
+        if (resizingLandmark) {
+          const deltaX = coords.x - resizingLandmark.startX
+          const deltaY = coords.y - resizingLandmark.startY
 
-          let nextW = lm.width
-          let nextH = lm.height
+          setLandmarks(prev => prev.map(lm => {
+            if (lm.id !== resizingLandmark.id) return lm
 
-          if (resizingLandmark.handle === 'br' || resizingLandmark.handle === 'r') {
-            nextW = Math.max(60, Math.min(CANVAS_WIDTH - lm.x - 20, Math.round(resizingLandmark.startW + deltaX)))
-          }
-          if (resizingLandmark.handle === 'br' || resizingLandmark.handle === 'b') {
-            nextH = Math.max(30, Math.min(CANVAS_HEIGHT - lm.y - 20, Math.round(resizingLandmark.startH + deltaY)))
-          }
+            let nextW = lm.width
+            let nextH = lm.height
 
-          return { ...lm, width: nextW, height: nextH }
-        }))
-        setHasUnsavedChanges(true)
-        return
-      }
+            if (resizingLandmark.handle === 'br' || resizingLandmark.handle === 'r') {
+              nextW = Math.max(60, Math.min(CANVAS_WIDTH - lm.x - 20, Math.round(resizingLandmark.startW + deltaX)))
+            }
+            if (resizingLandmark.handle === 'br' || resizingLandmark.handle === 'b') {
+              nextH = Math.max(30, Math.min(CANVAS_HEIGHT - lm.y - 20, Math.round(resizingLandmark.startH + deltaY)))
+            }
 
-      // Handle Dragging
-      if (draggingItem) {
-        const margin = 20
-        if (draggingItem.type === 'table') {
-          const tableMargin = 50
-          const newX = Math.max(tableMargin, Math.min(CANVAS_WIDTH - tableMargin, coords.x - dragOffset.x))
-          const newY = Math.max(tableMargin, Math.min(CANVAS_HEIGHT - tableMargin, coords.y - dragOffset.y))
-
-          setTables(prev => prev.map(t => t.id === draggingItem.id ? { ...t, pos_x: newX, pos_y: newY } : t))
+            return { ...lm, width: nextW, height: nextH }
+          }))
           setHasUnsavedChanges(true)
-        } else if (draggingItem.type === 'landmark') {
-          const item = landmarks.find(l => l.id === draggingItem.id)
-          const w = item ? item.width : 100
-          const h = item ? item.height : 50
-          const newX = Math.max(margin, Math.min(CANVAS_WIDTH - w - margin, coords.x - dragOffset.x))
-          const newY = Math.max(margin, Math.min(CANVAS_HEIGHT - h - margin, coords.y - dragOffset.y))
-
-          setLandmarks(prev => prev.map(l => l.id === draggingItem.id ? { ...l, x: newX, y: newY } : l))
-          setHasUnsavedChanges(true)
+          return
         }
+
+        // 2. Dragging with Magnetic Snapping
+        if (draggingItem) {
+          const margin = 20
+          let rawX = coords.x - dragOffset.x
+          let rawY = coords.y - dragOffset.y
+
+          if (draggingItem.type === 'table') {
+            const tableMargin = 50
+            rawX = Math.max(tableMargin, Math.min(CANVAS_WIDTH - tableMargin, rawX))
+            rawY = Math.max(tableMargin, Math.min(CANVAS_HEIGHT - tableMargin, rawY))
+
+            if (snappingEnabled) {
+              const { snappedX, snappedY, guides } = calculateSnappingGuides({
+                activeType: 'table',
+                activeId: draggingItem.id,
+                currentX: rawX,
+                currentY: rawY,
+                tables,
+                landmarks
+              })
+              rawX = snappedX
+              rawY = snappedY
+              setActiveGuides(guides)
+            } else {
+              setActiveGuides([])
+            }
+
+            setTables(prev => prev.map(t => t.id === draggingItem.id ? { ...t, pos_x: rawX, pos_y: rawY } : t))
+            setHasUnsavedChanges(true)
+          } else if (draggingItem.type === 'landmark') {
+            const item = landmarks.find(l => l.id === draggingItem.id)
+            const w = item ? item.width : 100
+            const h = item ? item.height : 50
+            rawX = Math.max(margin, Math.min(CANVAS_WIDTH - w - margin, rawX))
+            rawY = Math.max(margin, Math.min(CANVAS_HEIGHT - h - margin, rawY))
+
+            if (snappingEnabled) {
+              const { snappedX, snappedY, guides } = calculateSnappingGuides({
+                activeType: 'landmark',
+                activeId: draggingItem.id,
+                currentX: rawX,
+                currentY: rawY,
+                currentWidth: w,
+                currentHeight: h,
+                tables,
+                landmarks
+              })
+              rawX = snappedX
+              rawY = snappedY
+              setActiveGuides(guides)
+            } else {
+              setActiveGuides([])
+            }
+
+            setLandmarks(prev => prev.map(l => l.id === draggingItem.id ? { ...l, x: rawX, y: rawY } : l))
+            setHasUnsavedChanges(true)
+          }
+        }
+      })
+    }
+
+    const onMouseMove = (e: MouseEvent) => handlePointerMove(e.clientX, e.clientY)
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        handlePointerMove(e.touches[0].clientX, e.touches[0].clientY)
       }
     }
 
-    const handleWindowMouseUp = () => {
+    const handlePointerUp = () => {
+      if (dragStartSnapshot.current) {
+        pushUndo(dragStartSnapshot.current)
+        dragStartSnapshot.current = null
+      }
       setDraggingItem(null)
       setResizingLandmark(null)
+      setActiveGuides([])
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
 
-    const handleWindowTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 0) return
-      const touch = e.touches[0]
-      const coords = getSVGCoords(touch.clientX, touch.clientY)
-
-      // Handle Resizing on Touch
-      if (resizingLandmark) {
-        const deltaX = coords.x - resizingLandmark.startX
-        const deltaY = coords.y - resizingLandmark.startY
-
-        setLandmarks(prev => prev.map(lm => {
-          if (lm.id !== resizingLandmark.id) return lm
-
-          let nextW = lm.width
-          let nextH = lm.height
-
-          if (resizingLandmark.handle === 'br' || resizingLandmark.handle === 'r') {
-            nextW = Math.max(60, Math.min(CANVAS_WIDTH - lm.x - 20, Math.round(resizingLandmark.startW + deltaX)))
-          }
-          if (resizingLandmark.handle === 'br' || resizingLandmark.handle === 'b') {
-            nextH = Math.max(30, Math.min(CANVAS_HEIGHT - lm.y - 20, Math.round(resizingLandmark.startH + deltaY)))
-          }
-
-          return { ...lm, width: nextW, height: nextH }
-        }))
-        setHasUnsavedChanges(true)
-        return
-      }
-
-      // Handle Dragging on Touch
-      if (draggingItem) {
-        const margin = 20
-        if (draggingItem.type === 'table') {
-          const tableMargin = 50
-          const newX = Math.max(tableMargin, Math.min(CANVAS_WIDTH - tableMargin, coords.x - dragOffset.x))
-          const newY = Math.max(tableMargin, Math.min(CANVAS_HEIGHT - tableMargin, coords.y - dragOffset.y))
-
-          setTables(prev => prev.map(t => t.id === draggingItem.id ? { ...t, pos_x: newX, pos_y: newY } : t))
-          setHasUnsavedChanges(true)
-        } else if (draggingItem.type === 'landmark') {
-          const item = landmarks.find(l => l.id === draggingItem.id)
-          const w = item ? item.width : 100
-          const h = item ? item.height : 50
-          const newX = Math.max(margin, Math.min(CANVAS_WIDTH - w - margin, coords.x - dragOffset.x))
-          const newY = Math.max(margin, Math.min(CANVAS_HEIGHT - h - margin, coords.y - dragOffset.y))
-
-          setLandmarks(prev => prev.map(l => l.id === draggingItem.id ? { ...l, x: newX, y: newY } : l))
-          setHasUnsavedChanges(true)
-        }
-      }
-    }
-
-    const handleWindowTouchEnd = () => {
-      setDraggingItem(null)
-      setResizingLandmark(null)
-    }
-
-    window.addEventListener('mousemove', handleWindowMouseMove)
-    window.addEventListener('mouseup', handleWindowMouseUp)
-    window.addEventListener('touchmove', handleWindowTouchMove, { passive: false })
-    window.addEventListener('touchend', handleWindowTouchEnd)
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', handlePointerUp)
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    window.addEventListener('touchend', handlePointerUp)
 
     return () => {
-      window.removeEventListener('mousemove', handleWindowMouseMove)
-      window.removeEventListener('mouseup', handleWindowMouseUp)
-      window.removeEventListener('touchmove', handleWindowTouchMove)
-      window.removeEventListener('touchend', handleWindowTouchEnd)
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', handlePointerUp)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', handlePointerUp)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [draggingItem, resizingLandmark, dragOffset, getSVGCoords, readOnly, landmarks])
+  }, [draggingItem, resizingLandmark, dragOffset, getSVGCoords, readOnly, tables, landmarks, snappingEnabled, pushUndo])
 
-  // Global listeners for Panning & Pinch-to-Zoom
+  // Panning & Pinch listeners
   useEffect(() => {
     if (!isPanning && !pinchDist) return
 
@@ -544,7 +536,6 @@ export function FloorplanCanvas({
 
     const handleWindowTouchMove = (e: TouchEvent) => {
       if (e.touches.length === 2 && pinchDist) {
-        // Pinch to Zoom
         const currentDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
@@ -586,34 +577,47 @@ export function FloorplanCanvas({
     }
   }, [isPanning, panStart, pinchDist, viewBoxWidth, viewBoxHeight])
 
-  // Wheel zoom handler for direct React and native integration
+  // Mouse wheel zoom
   const handleWheelZoom = useCallback((deltaY: number) => {
     const factor = deltaY < 0 ? 1.15 : 0.85
     setZoom(prev => Math.min(3.5, Math.max(0.5, +(prev * factor).toFixed(2))))
   }, [])
 
-  // Native desktop mouse wheel & trackpad zoom listener
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-
     const handleNativeWheel = (e: WheelEvent) => {
       e.preventDefault()
       e.stopPropagation()
       handleWheelZoom(e.deltaY)
     }
-
     container.addEventListener('wheel', handleNativeWheel, { passive: false })
-    return () => {
-      container.removeEventListener('wheel', handleNativeWheel)
-    }
+    return () => container.removeEventListener('wheel', handleNativeWheel)
   }, [handleWheelZoom])
 
-  // Keyboard shortcut listener (+ / - / 0) for desktop
+  // Keyboard shortcuts (Ctrl+Z, Ctrl+Y, +, -, 0)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // If typing in an input, ignore
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey
+
+      if (cmdOrCtrl && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault()
+        if (e.shiftKey) {
+          handleRedo()
+        } else {
+          handleUndo()
+        }
+        return
+      }
+
+      if (cmdOrCtrl && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault()
+        handleRedo()
+        return
+      }
 
       if (e.key === '+' || e.key === '=') {
         e.preventDefault()
@@ -630,9 +634,9 @@ export function FloorplanCanvas({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [handleUndo, handleRedo])
 
-  // Save All Positions
+  // Save positions (Tables + Landmarks in DB & LocalStorage)
   const handleSavePositions = async () => {
     try {
       setSaving(true)
@@ -644,12 +648,17 @@ export function FloorplanCanvas({
         rotation: t.rotation
       }))
 
-      // Persist landmarks locally
+      // Persist locally as fallback cache
       localStorage.setItem(`floorplan_landmarks_${eventId}`, JSON.stringify(landmarks))
 
-      const res = await updateTablePositions(eventId, payload)
-      if (res.error) {
-        toast.error(res.error)
+      // Save both in parallel
+      const [tableRes, landmarkRes] = await Promise.all([
+        updateTablePositions(eventId, payload),
+        saveFloorplanLandmarks(eventId, landmarks)
+      ])
+
+      if (tableRes.error) {
+        toast.error(tableRes.error)
         return
       }
       toast.success('¡Distribución del salón y mesas guardada con éxito! 🗺️✨')
@@ -661,8 +670,9 @@ export function FloorplanCanvas({
     }
   }
 
-  // Add a new Landmark from Template
+  // Add Landmark
   const handleAddLandmark = (tpl: LandmarkTemplate) => {
+    pushUndo({ tables, landmarks })
     const countSameType = landmarks.filter(l => l.type === tpl.type).length
     const label = countSameType > 0 ? `${tpl.name} ${countSameType + 1}` : tpl.name
 
@@ -683,12 +693,12 @@ export function FloorplanCanvas({
     setSelectedLandmarkId(newLandmark.id)
     setSelectedTableId(null)
     setShowAddElementMenu(false)
-    setHasUnsavedChanges(true)
     toast.success(`Se ha añadido ${tpl.name} al salón`)
   }
 
   // Duplicate Landmark
   const handleDuplicateLandmark = (landmark: FloorplanLandmark) => {
+    pushUndo({ tables, landmarks })
     const dup: FloorplanLandmark = {
       ...landmark,
       id: `landmark_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -698,15 +708,14 @@ export function FloorplanCanvas({
     }
     setLandmarks(prev => [...prev, dup])
     setSelectedLandmarkId(dup.id)
-    setHasUnsavedChanges(true)
     toast.success(`Elemento duplicado`)
   }
 
   // Delete Landmark
   const handleDeleteLandmark = (landmarkId: string) => {
+    pushUndo({ tables, landmarks })
     setLandmarks(prev => prev.filter(l => l.id !== landmarkId))
     setSelectedLandmarkId(null)
-    setHasUnsavedChanges(true)
     toast.info('Elemento eliminado del plano')
   }
 
@@ -718,6 +727,7 @@ export function FloorplanCanvas({
 
   // Toggle Table Shape
   const handleToggleShape = (tableId: string) => {
+    pushUndo({ tables, landmarks })
     setTables(prev => prev.map(t => {
       if (t.id === tableId) {
         const nextShape: 'round' | 'rectangle' = t.shape === 'rectangle' ? 'round' : 'rectangle'
@@ -725,11 +735,11 @@ export function FloorplanCanvas({
       }
       return t
     }))
-    setHasUnsavedChanges(true)
   }
 
   // Rotate Table (45 deg)
   const handleRotateTable = (tableId: string) => {
+    pushUndo({ tables, landmarks })
     setTables(prev => prev.map(t => {
       if (t.id === tableId) {
         const nextRot = ((t.rotation || 0) + 45) % 360
@@ -737,11 +747,11 @@ export function FloorplanCanvas({
       }
       return t
     }))
-    setHasUnsavedChanges(true)
   }
 
   // Rotate Landmark (90 deg)
   const handleRotateLandmark = (landmarkId: string) => {
+    pushUndo({ tables, landmarks })
     setLandmarks(prev => prev.map(l => {
       if (l.id === landmarkId) {
         const nextRot = ((l.rotation || 0) + 90) % 360
@@ -749,16 +759,15 @@ export function FloorplanCanvas({
       }
       return l
     }))
-    setHasUnsavedChanges(true)
   }
 
-  // Dynamic Auto-Alignment based on the EXACT current positions of all room elements
+  // Dynamic Auto-Alignment Grid
   const handleAutoGrid = () => {
+    pushUndo({ tables, landmarks })
     const visibleLandmarks = landmarks.filter(l => l.visible)
-    const marginAroundLandmarks = 65 // Clearance for table + chairs
-    const minTableDistance = 120 // Minimum distance between table centers
+    const marginAroundLandmarks = 65
+    const minTableDistance = 120
 
-    // 1. Helper to check if a point collides with any visible landmark
     const collidesWithLandmarks = (x: number, y: number) => {
       return visibleLandmarks.some(lm => {
         return (
@@ -770,11 +779,9 @@ export function FloorplanCanvas({
       })
     }
 
-    // 2. Generate Candidate Grid Points across the whole canvas
     const xSteps = [110, 225, 340, 450, 560, 675, 790]
     const ySteps = [100, 210, 320, 430, 540]
 
-    // Create candidate slots prioritized by symmetry (Left & Right balanced)
     const rawCandidates: { x: number; y: number; distFromCenter: number; side: 'left' | 'right' | 'center' }[] = []
     const centerX = CANVAS_WIDTH / 2
     const centerY = CANVAS_HEIGHT / 2
@@ -789,15 +796,12 @@ export function FloorplanCanvas({
       }
     }
 
-    // 3. Select non-overlapping slots with balanced distribution
     const selectedSlots: { x: number; y: number }[] = []
     const leftSlots = rawCandidates.filter(c => c.side === 'left')
     const rightSlots = rawCandidates.filter(c => c.side === 'right')
     const centerSlots = rawCandidates.filter(c => c.side === 'center')
 
     const maxItems = Math.max(leftSlots.length, rightSlots.length, centerSlots.length)
-
-    // Alternate picking from Left, Right, and Center
     const prioritizedSlots: { x: number; y: number }[] = []
     for (let i = 0; i < maxItems; i++) {
       if (leftSlots[i]) prioritizedSlots.push(leftSlots[i])
@@ -805,7 +809,6 @@ export function FloorplanCanvas({
       if (centerSlots[i]) prioritizedSlots.push(centerSlots[i])
     }
 
-    // Filter to ensure no two chosen slots are closer than minTableDistance
     for (const cand of prioritizedSlots) {
       const tooClose = selectedSlots.some(s => Math.hypot(s.x - cand.x, s.y - cand.y) < minTableDistance)
       if (!tooClose) {
@@ -813,7 +816,6 @@ export function FloorplanCanvas({
       }
     }
 
-    // 4. Assign tables to the calculated free slots
     setTables(prev => prev.map((t, idx) => {
       if (idx < selectedSlots.length) {
         return {
@@ -822,8 +824,6 @@ export function FloorplanCanvas({
           pos_y: selectedSlots[idx].y
         }
       }
-
-      // Fallback in case there are more tables than available grid slots
       const fallbackCol = idx % 4
       const fallbackRow = Math.floor(idx / 4)
       return {
@@ -833,9 +833,50 @@ export function FloorplanCanvas({
       }
     }))
 
-    setHasUnsavedChanges(true)
     toast.success('¡Mesas auto-alineadas respetando todos los elementos de la sala! 📐✨')
   }
+
+  // Export handlers
+  const handleExportPNG = async () => {
+    if (!svgRef.current) return
+    try {
+      setExporting(true)
+      await exportFloorplanToImage({
+        svgElement: svgRef.current,
+        filename: `plano-boda-${eventId.substring(0, 8)}.png`,
+        scale: 2.5
+      })
+      setShowExportMenu(false)
+      toast.success('¡Imagen PNG en alta resolución descargada! 🖼️')
+    } catch {
+      toast.error('Error al exportar la imagen')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleExportSVG = () => {
+    if (!svgRef.current) return
+    exportFloorplanToSvg(svgRef.current, `plano-boda-${eventId.substring(0, 8)}.svg`)
+    setShowExportMenu(false)
+    toast.success('¡Archivo SVG vectorial descargado! 📐')
+  }
+
+  const handlePrint = () => {
+    setShowExportMenu(false)
+    printFloorplan()
+  }
+
+  // Collisions detection
+  const collisions = useMemo(() => detectCollisions(tables, landmarks), [tables, landmarks])
+  const collidingIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const c of collisions) {
+      set.add(c.id1)
+      set.add(c.id2)
+    }
+    return set
+  }, [collisions])
 
   // Selected entities
   const selectedTable = useMemo(() => tables.find(t => t.id === selectedTableId), [tables, selectedTableId])
@@ -862,18 +903,66 @@ export function FloorplanCanvas({
       {/* Admin Floorplan Controls Header */}
       {!readOnly && (
         <div className="flex items-center justify-between gap-3 p-3 bg-muted/40 rounded-2xl border border-border flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <Scaling className="w-4 h-4 text-primary" />
-              <span>Arrastra y redimensiona libremente mesas y pistas de baile</span>
-            </span>
+          
+          {/* Left toolbar items: Undo/Redo, Snapping, Pending changes indicator */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center bg-card/80 border border-border rounded-xl p-0.5 shadow-2xs">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleUndo}
+                disabled={undoStack.length === 0}
+                className="h-7 w-7 rounded-lg text-foreground hover:bg-muted disabled:opacity-30 cursor-pointer"
+                title="Deshacer (Ctrl+Z)"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleRedo}
+                disabled={redoStack.length === 0}
+                className="h-7 w-7 rounded-lg text-foreground hover:bg-muted disabled:opacity-30 cursor-pointer"
+                title="Rehacer (Ctrl+Y)"
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+
+            <Button
+              type="button"
+              variant={snappingEnabled ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSnappingEnabled(!snappingEnabled)}
+              className={`h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer ${
+                snappingEnabled ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs' : 'text-muted-foreground'
+              }`}
+              title="Activar/Desactivar Guías Magnéticas Inteligentes"
+            >
+              <Magnet className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Guías Magnéticas</span>
+            </Button>
+
+            {collisions.length > 0 && (
+              <span 
+                className="px-2 py-1 rounded-xl bg-destructive/10 text-destructive text-[11px] font-extrabold border border-destructive/20 flex items-center gap-1 animate-pulse"
+                title="Hay mesas o zonas solapadas"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>{collisions.length} {collisions.length === 1 ? 'solapamiento' : 'solapamientos'}</span>
+              </span>
+            )}
+
             {hasUnsavedChanges && (
               <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-extrabold border border-amber-500/20 animate-pulse">
-                Cambios pendientes
+                Cambios sin guardar
               </span>
             )}
           </div>
 
+          {/* Right toolbar items: Add Elements, Auto-Grid, Export, Save */}
           <div className="flex items-center gap-2 flex-wrap">
             
             {/* Add New Room Element Dropdown */}
@@ -882,12 +971,12 @@ export function FloorplanCanvas({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setShowAddElementMenu(!showAddElementMenu)}
+                onClick={() => { setShowAddElementMenu(!showAddElementMenu); setShowExportMenu(false); }}
                 className="h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 shadow-xs"
                 title="Añadir pistas de baile, barras o zonas al salón"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
-                <span>+ Añadir Elemento</span>
+                <span>+ Elemento</span>
               </Button>
 
               {showAddElementMenu && (
@@ -921,8 +1010,53 @@ export function FloorplanCanvas({
               title="Alinear automáticamente en cuadrícula"
             >
               <Grid className="w-3.5 h-3.5" />
-              <span>Auto-Alinear</span>
+              <span className="hidden md:inline">Auto-Alinear</span>
             </Button>
+
+            {/* Export Menu Dropdown */}
+            <div className="relative">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { setShowExportMenu(!showExportMenu); setShowAddElementMenu(false); }}
+                className="h-8 text-xs font-semibold rounded-xl gap-1.5 cursor-pointer"
+                title="Exportar plano en imagen HD o SVG"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Exportar</span>
+              </Button>
+
+              {showExportMenu && (
+                <div className="absolute right-0 top-10 z-50 w-56 p-1.5 rounded-2xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                  <button
+                    type="button"
+                    onClick={handleExportPNG}
+                    disabled={exporting}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer"
+                  >
+                    <FileImage className="w-4 h-4 text-emerald-500" />
+                    <span>{exporting ? 'Generando...' : 'Descargar Imagen PNG (HD)'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportSVG}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-sky-500" />
+                    <span>Descargar Vectorial SVG</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer border-t border-border/50"
+                  >
+                    <Printer className="w-4 h-4 text-primary" />
+                    <span>Imprimir Plano</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             <Button
               type="button"
@@ -932,7 +1066,7 @@ export function FloorplanCanvas({
               className="h-8 text-xs font-bold rounded-xl gap-1.5 bg-primary text-primary-foreground shadow-md cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>{saving ? 'Guardando...' : 'Guardar Plano'}</span>
+              <span>{saving ? 'Guardando...' : 'Guardar'}</span>
             </Button>
           </div>
         </div>
@@ -941,13 +1075,9 @@ export function FloorplanCanvas({
       {/* Main Floorplan Canvas Container */}
       <div 
         ref={containerRef}
-        onWheel={(e) => {
-          e.preventDefault()
-          handleWheelZoom(e.deltaY)
-        }}
         className="relative rounded-3xl border-2 border-border/80 overflow-hidden shadow-xl bg-slate-950/5 dark:bg-slate-950/40 backdrop-blur-md"
       >
-        {/* Floating Zoom & Pan Controls (Always visible in guest and admin view) */}
+        {/* Floating Zoom & Pan Controls */}
         <div className="absolute right-3.5 bottom-3.5 z-30 flex items-center gap-1 p-1 rounded-2xl bg-card/90 backdrop-blur-2xl border border-border/80 shadow-2xl shadow-black/20 animate-in fade-in zoom-in-95 duration-200">
           <button
             type="button"
@@ -991,10 +1121,10 @@ export function FloorplanCanvas({
           </button>
         </div>
 
-        {/* Zoom & Navigation Hint for Mobile / Desktop */}
+        {/* Zoom & Navigation Hint */}
         <div className="absolute left-3.5 bottom-3.5 z-20 pointer-events-none hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-card/85 backdrop-blur-md border border-border text-[11px] font-bold text-muted-foreground shadow-md animate-in fade-in duration-200">
           <Move className="w-3 h-3 text-primary" />
-          <span>{zoom > 1 ? 'Arrastra para desplazarte' : 'Rueda del ratón o +/- para hacer zoom'}</span>
+          <span>{zoom > 1 ? 'Arrastra para desplazarte' : 'Rueda del ratón o +/- para zoom • Ctrl+Z para deshacer'}</span>
         </div>
 
         <div className="relative w-full overflow-hidden">
@@ -1012,7 +1142,7 @@ export function FloorplanCanvas({
               if (zoom >= 1.8) setPan({ x: 0, y: 0 })
             }}
           >
-            {/* Background Grid Pattern */}
+            {/* Background Grid Pattern & Filters */}
             <defs>
               <pattern id="floor-grid" width="40" height="40" patternUnits="userSpaceOnUse">
                 <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeOpacity="0.06" strokeWidth="1" />
@@ -1026,9 +1156,12 @@ export function FloorplanCanvas({
               <filter id="highlight-glow" x="-40%" y="-40%" width="180%" height="180%">
                 <feDropShadow dx="0" dy="0" stdDeviation="12" floodColor="#E11D48" floodOpacity="0.6" />
               </filter>
+              <filter id="collision-glow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="0" stdDeviation="8" floodColor="#F43F5E" floodOpacity="0.7" />
+              </filter>
             </defs>
 
-            {/* Click on empty background deselects table */}
+            {/* Click on empty background */}
             <rect 
               width={CANVAS_WIDTH} 
               height={CANVAS_HEIGHT} 
@@ -1037,13 +1170,15 @@ export function FloorplanCanvas({
                 setSelectedTableId(null)
                 setSelectedLandmarkId(null)
                 setShowAddElementMenu(false)
+                setShowExportMenu(false)
               }}
             />
 
-            {/* Draggable & Resizable Hall Landmarks */}
+            {/* Render Landmarks (Dancefloor, Bar, Stage, etc.) */}
             {landmarks.filter(l => l.visible).map(lm => {
               const isSelected = selectedLandmarkId === lm.id
               const isItemDragging = draggingItem?.type === 'landmark' && draggingItem?.id === lm.id
+              const isColliding = collidingIds.has(lm.id)
               const rot = lm.rotation || 0
 
               let fillClass = 'fill-muted/80 stroke-border'
@@ -1084,13 +1219,13 @@ export function FloorplanCanvas({
                     setSelectedLandmarkId(lm.id)
                     setSelectedTableId(null)
                   }}
-                  filter={isSelected ? 'url(#landmark-glow)' : undefined}
+                  filter={isColliding ? 'url(#collision-glow)' : isSelected ? 'url(#landmark-glow)' : undefined}
                 >
                   <rect
                     width={lm.width}
                     height={lm.height}
                     rx={lm.type === 'dancefloor' ? 20 : 12}
-                    className={`${fillClass} transition-all duration-200`}
+                    className={`${fillClass} transition-all duration-200 ${isColliding ? 'stroke-destructive stroke-2' : ''}`}
                     strokeWidth={isSelected ? 2.5 : 1.5}
                     strokeDasharray={lm.type === 'dancefloor' ? '6 6' : undefined}
                   />
@@ -1115,17 +1250,15 @@ export function FloorplanCanvas({
                     </text>
                   )}
 
-                  {/* Move indicator in top-right */}
                   {!readOnly && (
                     <g transform={`translate(${lm.width - 20}, 6)`} className="opacity-40 hover:opacity-100">
                       <Move className="w-3.5 h-3.5 text-foreground" />
                     </g>
                   )}
 
-                  {/* Interactive SVG Resize Handles when selected */}
+                  {/* Interactive SVG Resize Handles */}
                   {isSelected && !readOnly && (
                     <g>
-                      {/* Corner Bottom-Right handle (Resizes both width & height) */}
                       <g
                         transform={`translate(${lm.width - 2}, ${lm.height - 2})`}
                         className="cursor-nwse-resize"
@@ -1136,7 +1269,6 @@ export function FloorplanCanvas({
                         <circle r="8" fill="#0284C7" stroke="#FFFFFF" strokeWidth="2.5" className="hover:scale-125 transition-transform shadow-md" />
                       </g>
 
-                      {/* Right Edge handle (Resizes width) */}
                       <g
                         transform={`translate(${lm.width - 2}, ${lm.height / 2})`}
                         className="cursor-ew-resize"
@@ -1147,7 +1279,6 @@ export function FloorplanCanvas({
                         <circle r="6" fill="#0284C7" stroke="#FFFFFF" strokeWidth="2" className="hover:scale-125 transition-transform" />
                       </g>
 
-                      {/* Bottom Edge handle (Resizes height) */}
                       <g
                         transform={`translate(${lm.width / 2}, ${lm.height - 2})`}
                         className="cursor-ns-resize"
@@ -1169,6 +1300,7 @@ export function FloorplanCanvas({
               const y = table.pos_y || 200
               const isSelected = selectedTableId === table.id
               const isHighlighted = highlightTableId === table.id
+              const isColliding = collidingIds.has(table.id)
               const peopleCount = getTablePeopleCount(table)
               const cap = table.capacity || 10
               const isFull = peopleCount >= cap
@@ -1204,7 +1336,6 @@ export function FloorplanCanvas({
                   )
                 }
               } else {
-                // Rectangle table chairs
                 const tableW = 110
                 const tableH = 50
                 const halfPerSide = Math.ceil(totalChairs / 2)
@@ -1261,17 +1392,17 @@ export function FloorplanCanvas({
                     setSelectedTableId(table.id)
                     setSelectedLandmarkId(null)
                   }}
-                  filter={isHighlighted ? 'url(#highlight-glow)' : isSelected ? 'url(#table-glow)' : undefined}
+                  filter={isColliding ? 'url(#collision-glow)' : isHighlighted ? 'url(#highlight-glow)' : isSelected ? 'url(#table-glow)' : undefined}
                 >
-                  {/* Outer Chairs */}
                   {chairElements}
 
-                  {/* Table Shape Body */}
                   {shape === 'round' ? (
                     <circle
                       r="42"
                       className={`transition-all duration-300 ${
-                        isSelected
+                        isColliding
+                          ? 'fill-destructive/20 stroke-destructive stroke-3 animate-pulse'
+                          : isSelected
                           ? 'fill-primary/20 stroke-primary stroke-3'
                           : isHighlighted
                           ? 'fill-rose-500/20 stroke-rose-500 stroke-3 animate-pulse'
@@ -1290,7 +1421,9 @@ export function FloorplanCanvas({
                       height="50"
                       rx="14"
                       className={`transition-all duration-300 ${
-                        isSelected
+                        isColliding
+                          ? 'fill-destructive/20 stroke-destructive stroke-3 animate-pulse'
+                          : isSelected
                           ? 'fill-primary/20 stroke-primary stroke-3'
                           : isHighlighted
                           ? 'fill-rose-500/20 stroke-rose-500 stroke-3 animate-pulse'
@@ -1336,10 +1469,47 @@ export function FloorplanCanvas({
                 </g>
               )
             })}
+
+            {/* Smart Magnetic Snapping Guidelines */}
+            {activeGuides.map((guide, idx) => {
+              if (guide.type === 'vertical') {
+                return (
+                  <g key={`guide_v_${idx}`} className="pointer-events-none">
+                    <line
+                      x1={guide.pos}
+                      y1={0}
+                      x2={guide.pos}
+                      y2={CANVAS_HEIGHT}
+                      stroke="#38BDF8"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 4"
+                      className="animate-pulse"
+                    />
+                    <circle cx={guide.pos} cy={CANVAS_HEIGHT / 2} r="3" fill="#38BDF8" />
+                  </g>
+                )
+              } else {
+                return (
+                  <g key={`guide_h_${idx}`} className="pointer-events-none">
+                    <line
+                      x1={0}
+                      y1={guide.pos}
+                      x2={CANVAS_WIDTH}
+                      y2={guide.pos}
+                      stroke="#38BDF8"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 4"
+                      className="animate-pulse"
+                    />
+                    <circle cx={CANVAS_WIDTH / 2} cy={guide.pos} r="3" fill="#38BDF8" />
+                  </g>
+                )
+              }
+            })}
           </svg>
         </div>
 
-        {/* Floating Inspector Card for Selected Landmark with Full Resize Controls */}
+        {/* Floating Inspector Card for Selected Landmark */}
         {selectedLandmark && !readOnly && (
           <div 
             className={`absolute top-4 ${
@@ -1366,15 +1536,13 @@ export function FloorplanCanvas({
               </button>
             </div>
 
-            {/* Resize Hint & Tip */}
             <div className="bg-primary/5 p-2.5 rounded-2xl border border-primary/20 text-xs flex items-center gap-2">
               <Scaling className="w-4 h-4 text-primary shrink-0" />
               <span className="text-muted-foreground text-[11px]">
-                Arrastra los <strong className="text-primary font-bold">puntos azules</strong> en las esquinas y bordes del elemento para redimensionarlo directamente con el ratón.
+                Arrastra los <strong className="text-primary font-bold">puntos azules</strong> en las esquinas y bordes para redimensionar.
               </span>
             </div>
 
-            {/* Actions: Rotate, Duplicate, Delete */}
             <div className="grid grid-cols-3 gap-1.5 pt-1">
               <Button
                 size="sm"
@@ -1412,7 +1580,7 @@ export function FloorplanCanvas({
           </div>
         )}
 
-        {/* Floating Table Inspector Drawer (Admin only) */}
+        {/* Floating Table Inspector Drawer */}
         {selectedTable && !readOnly && (
           <div 
             className={`absolute top-4 ${
@@ -1441,7 +1609,6 @@ export function FloorplanCanvas({
               </button>
             </div>
 
-            {/* Quick Shape & Rotation Controls */}
             <div className="grid grid-cols-2 gap-2">
               <Button
                 size="sm"
@@ -1463,7 +1630,6 @@ export function FloorplanCanvas({
               </Button>
             </div>
 
-            {/* Capacity Meter */}
             <div className="flex items-center justify-between text-xs font-semibold px-1">
               <span className="text-muted-foreground">Ocupación:</span>
               <span className={`font-mono font-bold ${
@@ -1477,7 +1643,6 @@ export function FloorplanCanvas({
               </span>
             </div>
 
-            {/* Guests list inside table */}
             <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
               {selectedTablePeople.length > 0 ? (
                 selectedTablePeople.map((p, idx) => (
@@ -1501,7 +1666,6 @@ export function FloorplanCanvas({
               )}
             </div>
 
-            {/* Action Buttons for admin */}
             {onEditTable && (
               <div className="pt-2 border-t border-border">
                 <Button
@@ -1520,7 +1684,7 @@ export function FloorplanCanvas({
 
       </div>
 
-      {/* Guest View: Selected Table Details Card placed cleanly BELOW canvas (so it never covers the map) */}
+      {/* Guest View: Selected Table Details Card placed cleanly BELOW canvas */}
       {readOnly && selectedTable && (
         <div className="mt-3 p-4 bg-card rounded-2xl border-2 border-primary/40 shadow-lg space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="flex items-center justify-between border-b border-border pb-2.5 flex-wrap gap-2">
