@@ -13,7 +13,8 @@ import {
   KeyRound, 
   LogIn, 
   UserPlus, 
-  Sparkles 
+  Sparkles,
+  AlertCircle 
 } from 'lucide-react'
 import { login, signup, requestPasswordReset } from './actions'
 import { Button } from '@/components/ui/button'
@@ -36,20 +37,31 @@ export function LoginForm({ initialError }: LoginFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(initialError || null)
   const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const isPending = isPendingLogin || isPendingSignup || isPendingReset
   const evaluation = evaluatePassword(password)
 
   const handleLogin = (formData: FormData) => {
+    setErrorMessage(null)
     startLoginTransition(async () => {
-      await login(formData)
+      const res = await login(formData)
+      if (res?.error) {
+        setErrorMessage(res.error)
+      }
     })
   }
 
   const handleSignup = (formData: FormData) => {
+    setErrorMessage(null)
     startSignupTransition(async () => {
-      await signup(formData)
+      const res = await signup(formData)
+      if (res?.error) {
+        setErrorMessage(res.error)
+      } else if (res?.success) {
+        setResetMessage({ type: 'success', text: res.success })
+      }
     })
   }
 
@@ -184,6 +196,25 @@ export function LoginForm({ initialError }: LoginFormProps) {
 
       {/* Main Tab Content */}
       <form className="space-y-3.5">
+        {/* Error / Feedback Alert Banner */}
+        {errorMessage && (
+          <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs font-semibold flex items-center gap-2 animate-in fade-in duration-150">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {resetMessage && (
+          <div className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 animate-in fade-in duration-150 ${
+            resetMessage.type === 'success' 
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400' 
+              : 'bg-destructive/10 border-destructive/30 text-destructive'
+          }`}>
+            {resetMessage.type === 'success' ? <Check className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+            <span>{resetMessage.text}</span>
+          </div>
+        )}
+
         {/* Email input */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">

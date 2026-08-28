@@ -5,18 +5,18 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { evaluatePassword, isValidEmail } from '@/lib/auth/passwordValidation'
 
-export async function login(formData: FormData) {
+export async function login(formData: FormData): Promise<{ error?: string } | void> {
   const supabase = await createClient()
 
   const email = (formData.get('email') as string)?.trim()
   const password = formData.get('password') as string
 
   if (!email || !password) {
-    redirect(`/login?error=${encodeURIComponent('Por favor introduce tu correo y contraseña')}`)
+    return { error: 'Por favor introduce tu correo y contraseña' }
   }
 
   if (!isValidEmail(email)) {
-    redirect(`/login?error=${encodeURIComponent('Por favor introduce un correo electrónico válido')}`)
+    return { error: 'Por favor introduce un correo electrónico válido' }
   }
 
   const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -25,33 +25,35 @@ export async function login(formData: FormData) {
     let msg = error.message
     if (msg.includes('Invalid login credentials')) {
       msg = 'Credenciales incorrectas. Comprueba tu correo y contraseña.'
+    } else if (msg.includes('Email not confirmed')) {
+      msg = 'Tu correo aún no ha sido confirmado. Revisa tu bandeja de entrada o confirma tu email.'
     }
-    redirect(`/login?error=${encodeURIComponent(msg)}`)
+    return { error: msg }
   }
 
   revalidatePath('/', 'layout')
   redirect('/dashboard')
 }
 
-export async function signup(formData: FormData) {
+export async function signup(formData: FormData): Promise<{ error?: string; success?: string } | void> {
   const supabase = await createClient()
 
   const email = (formData.get('email') as string)?.trim()
   const password = formData.get('password') as string
 
   if (!email || !password) {
-    redirect(`/login?error=${encodeURIComponent('Por favor introduce tu correo y contraseña')}`)
+    return { error: 'Por favor introduce tu correo y contraseña' }
   }
 
   if (!isValidEmail(email)) {
-    redirect(`/login?error=${encodeURIComponent('El formato del correo electrónico no es válido (ej: nombre@dominio.com)')}`)
+    return { error: 'El formato del correo electrónico no es válido (ej: nombre@dominio.com)' }
   }
 
   // Enforce password requirements on registration
   const evaluation = evaluatePassword(password)
   if (!evaluation.isValid) {
     const missing = evaluation.requirements.filter(r => !r.valid).map(r => r.label).join(', ')
-    redirect(`/login?error=${encodeURIComponent(`La contraseña no es válida. Falta: ${missing}`)}`)
+    return { error: `La contraseña no es válida. Falta: ${missing}` }
   }
 
   const { data: authData, error } = await supabase.auth.signUp({ email, password })
@@ -61,12 +63,12 @@ export async function signup(formData: FormData) {
     if (msg.includes('already registered')) {
       msg = 'Ya existe una cuenta con este correo electrónico.'
     }
-    redirect(`/login?error=${encodeURIComponent(msg)}`)
+    return { error: msg }
   }
 
   // Supabase returns no session if email confirmation is required
   if (!authData.session) {
-    redirect('/login?error=Revisa tu correo para confirmar tu cuenta (o desactiva la confirmación de email en Supabase Auth)')
+    return { success: '¡Cuenta creada! Revisa tu correo para confirmar tu registro o inicia sesión si ya confirmaste.' }
   }
 
   revalidatePath('/', 'layout')
