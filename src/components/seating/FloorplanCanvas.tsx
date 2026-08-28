@@ -9,6 +9,9 @@ import {
   DEFAULT_LANDMARKS,
   UnassignedGuest,
   SeatingAssignment,
+  SeatingAffinityRule,
+  AffinityViolation,
+  AffinityType,
   getTablePeopleCount, 
   getExpandedTableGuests 
 } from '@/lib/seating/types'
@@ -23,6 +26,7 @@ import {
 import { 
   updateTablePositions, 
   saveFloorplanLandmarks,
+  saveAffinityRules,
   addOrUpdateGuest,
   deleteGuest
 } from '@/app/dashboard/[eventId]/seating/actions'
@@ -78,7 +82,13 @@ import {
   LayoutTemplate,
   Crown,
   Wine,
-  Sparkle
+  Sparkle,
+  Heart,
+  HeartCrack,
+  HeartHandshake,
+  ShieldAlert,
+  Link2,
+  UserX
 } from 'lucide-react'
 
 interface FloorplanCanvasProps {
@@ -86,6 +96,7 @@ interface FloorplanCanvasProps {
   tables: SeatingTable[]
   initialLandmarks?: FloorplanLandmark[]
   initialUnassignedGuests?: UnassignedGuest[]
+  initialAffinityRules?: SeatingAffinityRule[]
   readOnly?: boolean
   highlightTableId?: string
   onEditTable?: (table: SeatingTable) => void
@@ -100,15 +111,25 @@ export function FloorplanCanvas({
   tables: initialTables,
   initialLandmarks,
   initialUnassignedGuests,
+  initialAffinityRules,
   readOnly = false,
   highlightTableId,
   onEditTable,
   onAddGuest
 }: FloorplanCanvasProps) {
-  // State for tables, landmarks, and unassigned guests
+  // State for tables, landmarks, unassigned guests, and affinity rules
   const [tables, setTables] = useState<SeatingTable[]>([])
   const [landmarks, setLandmarks] = useState<FloorplanLandmark[]>(initialLandmarks && initialLandmarks.length > 0 ? initialLandmarks : DEFAULT_LANDMARKS)
   const [unassignedGuests, setUnassignedGuests] = useState<UnassignedGuest[]>(initialUnassignedGuests || [])
+  const [affinityRules, setAffinityRules] = useState<SeatingAffinityRule[]>(initialAffinityRules || [])
+  
+  // Affinity Rules Modal & Form State
+  const [showAffinityModal, setShowAffinityModal] = useState(false)
+  const [affinityTab, setAffinityTab] = useState<'violations' | 'rules' | 'create'>('violations')
+  const [ruleGuest1, setRuleGuest1] = useState('')
+  const [ruleGuest2, setRuleGuest2] = useState('')
+  const [ruleType, setRuleType] = useState<AffinityType>('must_together')
+  const [ruleReason, setRuleReason] = useState('')
   
   // Unassigned Guests Drag & Drop & Sidebar State
   const [showUnassignedSidebar, setShowUnassignedSidebar] = useState(false)
@@ -1282,6 +1303,115 @@ export function FloorplanCanvas({
     )
   }, [unassignedGuests, unassignedSearch])
 
+  // All unique guest names (seated + unassigned) for quick rule creation autocomplete
+  const allGuestNames = useMemo(() => {
+    const set = new Set<string>()
+    for (const t of tables) {
+      for (const p of getExpandedTableGuests(t)) {
+        if (p.name) set.add(p.name.trim())
+      }
+    }
+    for (const u of unassignedGuests) {
+      if (u.name) set.add(u.name.trim())
+      if (u.companionNames) {
+        u.companionNames.split(',').forEach(c => {
+          if (c.trim()) set.add(c.trim())
+        })
+      }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
+  }, [tables, unassignedGuests])
+
+  // Affinity Violations Engine: checks active rules against seated table positions
+  const affinityViolations = useMemo<AffinityViolation[]>(() => {
+    if (affinityRules.length === 0) return []
+
+    const guestTableMap = new Map<string, SeatingTable>()
+    for (const table of tables) {
+      const people = getExpandedTableGuests(table)
+      for (const p of people) {
+        if (p.name) {
+          guestTableMap.set(p.name.toLowerCase().trim(), table)
+        }
+      }
+    }
+
+    const violations: AffinityViolation[] = []
+
+    for (const rule of affinityRules) {
+      const g1Key = rule.guest1_name.toLowerCase().trim()
+      const g2Key = rule.guest2_name.toLowerCase().trim()
+
+      const t1 = guestTableMap.get(g1Key)
+      const t2 = guestTableMap.get(g2Key)
+
+      if (rule.type === 'must_together') {
+        if (t1 && t2 && t1.id !== t2.id) {
+          violations.push({
+            rule,
+            message: `«${rule.guest1_name}» y «${rule.guest2_name}» deben sentarse juntos pero están separados (Mesa ${t1.table_number} y Mesa ${t2.table_number})`,
+            tableId: t1.id,
+            tableNumber: t1.table_number,
+            guest1_tableName: `Mesa ${t1.table_number}`,
+            guest2_tableName: `Mesa ${t2.table_number}`
+          })
+        }
+      } else if (rule.type === 'must_not_together') {
+        if (t1 && t2 && t1.id === t2.id) {
+          violations.push({
+            rule,
+            message: `«${rule.guest1_name}» y «${rule.guest2_name}» son incompatibles y están sentados juntos en la Mesa ${t1.table_number}`,
+            tableId: t1.id,
+            tableNumber: t1.table_number,
+            guest1_tableName: `Mesa ${t1.table_number}`,
+            guest2_tableName: `Mesa ${t2.table_number}`
+          })
+        }
+      }
+    }
+
+    return violations
+  }, [affinityRules, tables])
+
+  // Add / Delete Affinity Rules handlers
+  const handleAddAffinityRule = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!ruleGuest1.trim() || !ruleGuest2.trim()) {
+      toast.error('Selecciona los dos comensales para la regla')
+      return
+    }
+    if (ruleGuest1.trim().toLowerCase() === ruleGuest2.trim().toLowerCase()) {
+      toast.error('Debes seleccionar dos personas distintas')
+      return
+    }
+
+    const newRule: SeatingAffinityRule = {
+      id: `rule_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      event_id: eventId,
+      guest1_name: ruleGuest1.trim(),
+      guest2_name: ruleGuest2.trim(),
+      type: ruleType,
+      reason: ruleReason.trim() || null,
+      created_at: new Date().toISOString()
+    }
+
+    const updated = [...affinityRules, newRule]
+    setAffinityRules(updated)
+    setRuleGuest1('')
+    setRuleGuest2('')
+    setRuleReason('')
+    setAffinityTab('rules')
+    toast.success('¡Regla de afinidad guardada!')
+    await saveAffinityRules(eventId, updated)
+  }
+
+  const handleDeleteAffinityRule = async (ruleId: string) => {
+    const updated = affinityRules.filter(r => r.id !== ruleId)
+    setAffinityRules(updated)
+    toast.info('Regla de afinidad eliminada')
+    await saveAffinityRules(eventId, updated)
+  }
+
   // Collisions detection
   const collisions = useMemo(() => detectCollisions(tables, landmarks), [tables, landmarks])
   const collidingIds = useMemo(() => {
@@ -1533,13 +1663,45 @@ export function FloorplanCanvas({
                 )}
               </div>
 
+              {/* Affinity Rules & Incompatibilities Button */}
+              <Button
+                type="button"
+                variant={affinityViolations.length > 0 ? 'destructive' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setShowAffinityModal(true)
+                  setShowAddElementMenu(false)
+                  setShowExportMenu(false)
+                  setShowPresetsMenu(false)
+                  setShowUnassignedSidebar(false)
+                }}
+                className={`h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer shrink-0 transition-all ${
+                  affinityViolations.length > 0
+                    ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/40 hover:bg-rose-500/25 animate-pulse shadow-xs'
+                    : 'bg-card text-foreground hover:bg-muted border-border'
+                }`}
+                title="Reglas de afinidad e incompatibilidad entre invitados"
+              >
+                <HeartHandshake className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                <span className="hidden lg:inline">Afinidades</span>
+                {affinityViolations.length > 0 ? (
+                  <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-black animate-bounce">
+                    {affinityViolations.length}
+                  </span>
+                ) : affinityRules.length > 0 ? (
+                  <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-black border border-emerald-500/30">
+                    {affinityRules.length}
+                  </span>
+                ) : null}
+              </Button>
+
               {/* Export Menu Dropdown */}
               <div className="relative shrink-0">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => { setShowExportMenu(!showExportMenu); setShowAddElementMenu(false); }}
+                  onClick={() => { setShowExportMenu(!showExportMenu); setShowAddElementMenu(false); setShowPresetsMenu(false); }}
                   className="h-8 text-xs font-semibold rounded-xl gap-1.5 cursor-pointer"
                   title="Exportar plano en imagen HD o SVG"
                 >
@@ -2190,6 +2352,16 @@ export function FloorplanCanvas({
                     >
                       {peopleCount}/{cap} pers.
                     </text>
+
+                    {/* Affinity Violation Badge */}
+                    {affinityViolations.some(v => v.tableNumber === table.table_number || v.guest1_tableName === `Mesa ${table.table_number}` || v.guest2_tableName === `Mesa ${table.table_number}`) && (
+                      <g transform="translate(26, -26)" className="animate-bounce">
+                        <circle r="10" className="fill-rose-500 stroke-white stroke-2 shadow-lg" />
+                        <text y="3.5" textAnchor="middle" className="fill-white text-[9px] font-black pointer-events-none select-none">
+                          ❤️
+                        </text>
+                      </g>
+                    )}
                   </g>
                 </g>
               )
@@ -2403,6 +2575,23 @@ export function FloorplanCanvas({
               )}
             </div>
 
+            {/* Affinity Violation Alert in Table Inspector */}
+            {affinityViolations.filter(v => v.tableNumber === selectedTable.table_number || v.guest1_tableName === `Mesa ${selectedTable.table_number}` || v.guest2_tableName === `Mesa ${selectedTable.table_number}`).length > 0 && (
+              <div className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs space-y-1">
+                <div className="font-extrabold flex items-center gap-1.5">
+                  <HeartHandshake className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  <span>Conflicto de Afinidad en esta mesa:</span>
+                </div>
+                {affinityViolations
+                  .filter(v => v.tableNumber === selectedTable.table_number || v.guest1_tableName === `Mesa ${selectedTable.table_number}` || v.guest2_tableName === `Mesa ${selectedTable.table_number}`)
+                  .map((v, i) => (
+                    <p key={i} className="text-[11px] font-medium leading-tight text-foreground/90">
+                      • {v.message}
+                    </p>
+                  ))}
+              </div>
+            )}
+
             {onEditTable && (
               <div className="pt-2 border-t border-border">
                 <Button
@@ -2479,6 +2668,314 @@ export function FloorplanCanvas({
               ) : (
                 <p className="text-xs text-muted-foreground italic col-span-2 text-center py-2">Esta mesa aún no tiene comensales asignados.</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Affinity Rules & Incompatibilities Dialog Modal */}
+      {showAffinityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div 
+            className="w-full max-w-xl bg-card rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col max-h-[88vh] animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-5 border-b border-border/80 flex items-center justify-between bg-muted/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/15 text-rose-500 flex items-center justify-center text-xl shadow-xs">
+                  ❤️
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-foreground">Reglas de Afinidad e Incompatibilidades</h3>
+                  <p className="text-xs text-muted-foreground">Define parejas inseparables o invitados que no deben coincidir</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAffinityModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Tabs */}
+            <div className="flex border-b border-border px-5 pt-2 gap-2 bg-muted/10">
+              <button
+                type="button"
+                onClick={() => setAffinityTab('violations')}
+                className={`pb-2.5 px-3 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
+                  affinityTab === 'violations'
+                    ? 'border-rose-500 text-rose-500'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                <span>Conflictos Activos</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  affinityViolations.length > 0
+                    ? 'bg-rose-500 text-white animate-pulse'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {affinityViolations.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAffinityTab('rules')}
+                className={`pb-2.5 px-3 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
+                  affinityTab === 'rules'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                <span>Reglas Guardadas</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-muted text-muted-foreground text-[10px] font-black">
+                  {affinityRules.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAffinityTab('create')}
+                className={`pb-2.5 px-3 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
+                  affinityTab === 'create'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nueva Regla</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              
+              {/* TAB 1: VIOLATIONS */}
+              {affinityTab === 'violations' && (
+                <div className="space-y-3">
+                  {affinityViolations.length > 0 ? (
+                    <div className="space-y-2.5">
+                      <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 animate-bounce" />
+                        <span>Se han detectado {affinityViolations.length} situaciones que no cumplen las reglas de afinidad:</span>
+                      </div>
+                      {affinityViolations.map((v, idx) => (
+                        <div 
+                          key={idx}
+                          className="p-3.5 rounded-2xl bg-muted/40 border border-rose-500/30 space-y-1.5 shadow-2xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              v.rule.type === 'must_together'
+                                ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                                : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                            }`}>
+                              {v.rule.type === 'must_together' ? '❤️ Deben estar juntos' : '⚠️ Incompatibles'}
+                            </span>
+                            {v.rule.reason && (
+                              <span className="text-[11px] text-muted-foreground font-medium italic">
+                                Motivo: {v.rule.reason}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-bold text-foreground leading-relaxed">
+                            {v.message}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-12 text-center px-4 space-y-3">
+                      <div className="w-14 h-14 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto text-2xl">
+                        ✨
+                      </div>
+                      <div className="space-y-1 max-w-sm mx-auto">
+                        <h4 className="text-sm font-extrabold text-foreground">¡Todo en perfecta armonía!</h4>
+                        <p className="text-xs text-muted-foreground">
+                          {affinityRules.length > 0 
+                            ? 'Todas las parejas e incompatibilidades configuradas se están respetando en la distribución actual.'
+                            : 'Aún no has creado ninguna regla de afinidad. Pulsa en "Nueva Regla" para crear la primera.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: RULES LIST */}
+              {affinityTab === 'rules' && (
+                <div className="space-y-3">
+                  {affinityRules.length > 0 ? (
+                    <div className="space-y-2">
+                      {affinityRules.map((rule) => (
+                        <div 
+                          key={rule.id}
+                          className="p-3 rounded-2xl bg-muted/40 border border-border flex items-center justify-between gap-3 shadow-2xs hover:border-primary/40 transition-colors"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-xl shrink-0">
+                              {rule.type === 'must_together' ? '❤️' : '⚠️'}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-xs text-foreground truncate">{rule.guest1_name}</span>
+                                <span className="text-[11px] text-muted-foreground font-semibold">
+                                  {rule.type === 'must_together' ? 'y' : '≠'}
+                                </span>
+                                <span className="font-bold text-xs text-foreground truncate">{rule.guest2_name}</span>
+                              </div>
+                              <div className="text-[11px] text-muted-foreground font-medium flex items-center gap-2">
+                                <span className={rule.type === 'must_together' ? 'text-rose-500 font-bold' : 'text-amber-500 font-bold'}>
+                                  {rule.type === 'must_together' ? 'Deben sentarse juntos' : 'No juntar en la misma mesa'}
+                                </span>
+                                {rule.reason && <span>• {rule.reason}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAffinityRule(rule.id)}
+                            className="p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                            title="Eliminar regla"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-12 text-center px-4 space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-muted/60 text-muted-foreground flex items-center justify-center mx-auto text-xl">
+                        ❤️
+                      </div>
+                      <p className="text-xs text-muted-foreground font-medium">
+                        No hay ninguna regla creada todavía.
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setAffinityTab('create')}
+                        className="rounded-xl font-bold text-xs gap-1.5"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Crear primera regla</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: CREATE NEW RULE */}
+              {affinityTab === 'create' && (
+                <form onSubmit={handleAddAffinityRule} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-foreground">1. Primer comensal:</label>
+                    <Input
+                      list="guest-names-list-1"
+                      placeholder="Escribe o selecciona nombre (ej: Laura García)..."
+                      value={ruleGuest1}
+                      onChange={(e) => setRuleGuest1(e.target.value)}
+                      className="rounded-xl bg-background border-border text-xs h-9 font-medium"
+                      required
+                    />
+                    <datalist id="guest-names-list-1">
+                      {allGuestNames.map(name => (
+                        <option key={`g1_${name}`} value={name} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-foreground">2. Tipo de relación:</label>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setRuleType('must_together')}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                          ruleType === 'must_together'
+                            ? 'bg-rose-500/10 border-rose-500/60 ring-2 ring-rose-500/20'
+                            : 'bg-muted/30 border-border hover:bg-muted/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">❤️</span>
+                          <span className="text-xs font-black text-foreground">Deben ir juntos</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1">Pareja, familia directa o amigos inseparables.</p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setRuleType('must_not_together')}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                          ruleType === 'must_not_together'
+                            ? 'bg-amber-500/10 border-amber-500/60 ring-2 ring-amber-500/20'
+                            : 'bg-muted/30 border-border hover:bg-muted/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">⚠️</span>
+                          <span className="text-xs font-black text-foreground">No juntar</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1">Incompatibilidad o evitar sentar en la misma mesa.</p>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-foreground">3. Segundo comensal:</label>
+                    <Input
+                      list="guest-names-list-2"
+                      placeholder="Escribe o selecciona segundo nombre..."
+                      value={ruleGuest2}
+                      onChange={(e) => setRuleGuest2(e.target.value)}
+                      className="rounded-xl bg-background border-border text-xs h-9 font-medium"
+                      required
+                    />
+                    <datalist id="guest-names-list-2">
+                      {allGuestNames.filter(n => n.toLowerCase() !== ruleGuest1.toLowerCase()).map(name => (
+                        <option key={`g2_${name}`} value={name} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-foreground">4. Motivo o nota (opcional):</label>
+                    <Input
+                      placeholder="Ej: Pareja, Hermanos, Conflicto familiar..."
+                      value={ruleReason}
+                      onChange={(e) => setRuleReason(e.target.value)}
+                      className="rounded-xl bg-background border-border text-xs h-9 font-medium"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAffinityTab('violations')}
+                      className="rounded-xl text-xs font-semibold"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-md"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Guardar Regla de Afinidad</span>
+                    </Button>
+                  </div>
+                </form>
+              )}
+
             </div>
           </div>
         </div>

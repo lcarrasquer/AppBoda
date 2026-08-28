@@ -53,6 +53,26 @@ export interface UnassignedGuest {
   notes?: string | null
 }
 
+export type AffinityType = 'must_together' | 'must_not_together'
+
+export interface SeatingAffinityRule {
+  id: string
+  event_id: string
+  guest1_name: string
+  guest2_name: string
+  type: AffinityType
+  reason?: string | null
+  created_at?: string
+}
+
+export interface AffinityViolation {
+  rule: SeatingAffinityRule
+  message: string
+  tableId?: string
+  tableNumber?: string
+  guest1_tableName?: string
+  guest2_tableName?: string
+}
 
 export function getAssignmentSeatCount(assignment: SeatingAssignment): number {
   if (assignment.seats_count && assignment.seats_count > 0) {

@@ -1,7 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { SeatingTable, SeatingAssignment, FloorplanLandmark, UnassignedGuest, getAssignmentSeatCount, getTablePeopleCount, getExpandedTableGuests } from '@/lib/seating/types'
+import { 
+  SeatingTable, 
+  SeatingAssignment, 
+  FloorplanLandmark, 
+  UnassignedGuest, 
+  SeatingAffinityRule,
+  getAssignmentSeatCount, 
+  getTablePeopleCount, 
+  getExpandedTableGuests 
+} from '@/lib/seating/types'
 import { 
   createOrUpdateTable, 
   deleteTable, 
@@ -52,6 +61,7 @@ interface SeatingManagerProps {
   initialTables: SeatingTable[]
   initialLandmarks?: FloorplanLandmark[]
   initialUnassignedGuests?: UnassignedGuest[]
+  initialAffinityRules?: SeatingAffinityRule[]
 }
 
 const DIETARY_PRESETS = [
@@ -64,10 +74,18 @@ const DIETARY_PRESETS = [
   { label: '🥛 Sin Lactosa', value: 'Sin Lactosa' },
 ]
 
-export function SeatingManager({ eventId, event, initialTables, initialLandmarks, initialUnassignedGuests }: SeatingManagerProps) {
+export function SeatingManager({ 
+  eventId, 
+  event, 
+  initialTables, 
+  initialLandmarks, 
+  initialUnassignedGuests,
+  initialAffinityRules 
+}: SeatingManagerProps) {
   const [tables, setTables] = useState<SeatingTable[]>(initialTables)
   const [landmarks, setLandmarks] = useState<FloorplanLandmark[]>(initialLandmarks || [])
   const [unassignedGuests, setUnassignedGuests] = useState<UnassignedGuest[]>(initialUnassignedGuests || [])
+  const [affinityRules, setAffinityRules] = useState<SeatingAffinityRule[]>(initialAffinityRules || [])
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'grid' | 'floorplan'>('grid')
 
@@ -590,6 +608,7 @@ export function SeatingManager({ eventId, event, initialTables, initialLandmarks
           tables={tables}
           initialLandmarks={landmarks}
           initialUnassignedGuests={unassignedGuests}
+          initialAffinityRules={affinityRules}
           onEditTable={handleOpenEditTable}
           onAddGuest={handleOpenAddGuest}
         />

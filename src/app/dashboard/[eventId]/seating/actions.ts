@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { SeatingTable, SeatingAssignment, FloorplanLandmark, UnassignedGuest } from '@/lib/seating/types'
+import { SeatingTable, SeatingAssignment, FloorplanLandmark, UnassignedGuest, SeatingAffinityRule } from '@/lib/seating/types'
 
 function getAdminClient() {
   return createSupabaseClient(
@@ -16,6 +16,7 @@ export async function getSeatingPlan(eventId: string): Promise<{
   tables: SeatingTable[]
   landmarks?: FloorplanLandmark[]
   unassignedGuests?: UnassignedGuest[]
+  affinityRules?: SeatingAffinityRule[]
   error?: string
 }> {
   try {
@@ -81,8 +82,22 @@ export async function getSeatingPlan(eventId: string): Promise<{
       }
     }
 
+    // Extract affinity rules from database
+    let affinityRules: SeatingAffinityRule[] = []
+    const affinityMetaRow = rawTables.find(t => t.table_number === '__affinity_rules__')
+    if (affinityMetaRow?.notes) {
+      try {
+        const parsed = JSON.parse(affinityMetaRow.notes)
+        if (Array.isArray(parsed)) {
+          affinityRules = parsed
+        }
+      } catch (e) {
+        console.error('Error parsing stored affinity rules:', e)
+      }
+    }
+
     const tables: SeatingTable[] = rawTables
-      .filter((t: any) => t.table_number !== '__floorplan_landmarks__')
+      .filter((t: any) => !t.table_number?.startsWith('__'))
       .map((t: any) => ({
         ...t,
         assignments: assignments.filter((a: any) => a.table_id === t.id)
@@ -107,10 +122,51 @@ export async function getSeatingPlan(eventId: string): Promise<{
         dietary: null
       }))
 
-    return { tables, landmarks, unassignedGuests }
+    return { tables, landmarks, unassignedGuests, affinityRules }
   } catch (err: any) {
     console.error('Error in getSeatingPlan:', err)
     return { tables: [], error: err.message || 'Error al obtener las mesas' }
+  }
+}
+
+// 1.2 Save affinity rules in database
+export async function saveAffinityRules(
+  eventId: string,
+  rules: SeatingAffinityRule[]
+): Promise<{ success?: boolean; error?: string }> {
+  try {
+    const supabase = getAdminClient()
+
+    const { data: existing } = await supabase
+      .from('seating_tables')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('table_number', '__affinity_rules__')
+      .limit(1)
+
+    if (existing && existing.length > 0) {
+      await supabase
+        .from('seating_tables')
+        .update({ notes: JSON.stringify(rules) })
+        .eq('id', existing[0].id)
+    } else {
+      await supabase
+        .from('seating_tables')
+        .insert({
+          event_id: eventId,
+          table_number: '__affinity_rules__',
+          table_name: '__affinity_rules__',
+          notes: JSON.stringify(rules),
+          capacity: 0,
+          position_order: 998
+        })
+    }
+
+    revalidatePath(`/dashboard/${eventId}/seating`)
+    return { success: true }
+  } catch (err: any) {
+    console.error('Error saving affinity rules to DB:', err)
+    return { error: err.message }
   }
 }
 
