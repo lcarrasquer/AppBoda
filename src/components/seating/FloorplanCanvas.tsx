@@ -15,7 +15,6 @@ import {
   detectCollisions, 
   exportFloorplanToImage, 
   exportFloorplanToSvg, 
-  printFloorplan,
   SnapGuide, 
   FloorplanSnapshot 
 } from '@/lib/seating/floorplanUtils'
@@ -58,7 +57,6 @@ import {
   Undo2, 
   Redo2, 
   Download, 
-  Printer, 
   FileImage, 
   AlertTriangle, 
   Magnet 
@@ -880,11 +878,6 @@ export function FloorplanCanvas({
     toast.success('¡Archivo SVG vectorial descargado! 📐')
   }
 
-  const handlePrint = () => {
-    setShowExportMenu(false)
-    printFloorplan()
-  }
-
   // Collisions detection
   const collisions = useMemo(() => detectCollisions(tables, landmarks), [tables, landmarks])
   const collidingIds = useMemo(() => {
@@ -1065,14 +1058,6 @@ export function FloorplanCanvas({
                     >
                       <Download className="w-4 h-4 text-sky-500 shrink-0" />
                       <span>Descargar Vectorial SVG</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handlePrint}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer whitespace-nowrap transition-colors border-t border-border/50"
-                    >
-                      <Printer className="w-4 h-4 text-primary shrink-0" />
-                      <span>Imprimir Plano</span>
                     </button>
                   </div>
                 )}
