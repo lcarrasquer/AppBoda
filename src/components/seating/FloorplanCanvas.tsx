@@ -775,7 +775,7 @@ export function FloorplanCanvas({
     }
 
     setLandmarks(prev => [...prev, newLandmark])
-    setSelectedLandmarkId(newLandmark.id)
+    setSelectedLandmarkId(null)
     setSelectedTableId(null)
     setShowAddElementMenu(false)
     setHasUnsavedChanges(true)
@@ -1956,9 +1956,9 @@ export function FloorplanCanvas({
         {/* Floating Inspector Card for Selected Landmark */}
         {selectedLandmark && !readOnly && (
           <div 
-            className={`absolute top-4 ${
-              showUnassignedSidebar ? 'right-4' : selectedLandmark.x > CANVAS_WIDTH * 0.48 ? 'left-4' : 'right-4'
-            } z-30 w-80 sm:w-84 bg-card/95 backdrop-blur-xl p-4 rounded-3xl border border-border shadow-2xl space-y-3.5 animate-in fade-in duration-200 ${
+            className={`absolute bottom-4 ${
+              showUnassignedSidebar ? 'right-4' : 'right-4'
+            } z-30 w-80 sm:w-84 bg-card/95 backdrop-blur-xl p-4 rounded-3xl border border-border shadow-2xl space-y-3.5 animate-in fade-in zoom-in-95 duration-200 ${
               isInteracting ? 'pointer-events-none opacity-20' : 'opacity-100'
             }`}
           >
