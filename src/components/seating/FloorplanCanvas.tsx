@@ -166,6 +166,7 @@ export function FloorplanCanvas({
   }, [])
 
   const handleToggleFullscreen = useCallback(async () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 640) return
     if (!fullWrapperRef.current) return
     try {
       if (!document.fullscreenElement) {
@@ -697,8 +698,10 @@ export function FloorplanCanvas({
         setZoom(1)
         setPan({ x: 0, y: 0 })
       } else if (e.key === 'f' || e.key === 'F') {
-        e.preventDefault()
-        handleToggleFullscreen()
+        if (window.innerWidth >= 640) {
+          e.preventDefault()
+          handleToggleFullscreen()
+        }
       }
     }
 
@@ -1500,13 +1503,13 @@ export function FloorplanCanvas({
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
 
-          <div className="w-[1px] h-4 bg-border/80 mx-0.5" />
+          <div className="hidden sm:block w-[1px] h-4 bg-border/80 mx-0.5" />
 
-          {/* Fullscreen Toggle Button */}
+          {/* Fullscreen Toggle Button (Hidden on Mobile) */}
           <button
             type="button"
             onClick={handleToggleFullscreen}
-            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+            className={`hidden sm:flex w-8 h-8 rounded-xl items-center justify-center transition-all cursor-pointer ${
               isFullscreen 
                 ? 'bg-primary text-primary-foreground shadow-sm' 
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted active:scale-90'
