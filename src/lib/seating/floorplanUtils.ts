@@ -248,50 +248,51 @@ export function detectCollisions(tables: SeatingTable[], landmarks: FloorplanLan
 }
 
 /**
- * Inlines computed CSS styles (Tailwind classes, CSS variables, typography)
- * from the live DOM SVG onto a cloned SVG so it renders independently as image or standalone SVG.
+ * Recursively inlines computed styles from original DOM SVG to cloned SVG.
+ * Ensures every single table, chair, landmark and text label preserves exact colors and fonts.
  */
-function inlineComputedStyles(sourceSvg: SVGSVGElement, targetSvg: SVGSVGElement) {
-  const sourceElements = Array.from(sourceSvg.querySelectorAll('*'))
-  const targetElements = Array.from(targetSvg.querySelectorAll('*'))
+function recursivelyInlineStyles(srcNode: Element, tgtNode: Element) {
+  const computed = window.getComputedStyle(srcNode)
+  const tag = srcNode.tagName.toLowerCase()
 
-  for (let i = 0; i < sourceElements.length; i++) {
-    const src = sourceElements[i] as SVGElement
-    const tgt = targetElements[i] as SVGElement
-    if (!src || !tgt) continue
-
-    const computed = window.getComputedStyle(src)
-    const tag = src.tagName.toLowerCase()
-
-    // 1. Fill & Stroke
+  // 1. Shapes and geometric elements
+  if (['rect', 'circle', 'path', 'line', 'polygon'].includes(tag)) {
     if (computed.fill && computed.fill !== 'none') {
-      tgt.setAttribute('fill', computed.fill)
+      tgtNode.setAttribute('fill', computed.fill)
     }
     if (computed.stroke && computed.stroke !== 'none') {
-      tgt.setAttribute('stroke', computed.stroke)
-      if (computed.strokeWidth) tgt.setAttribute('stroke-width', computed.strokeWidth)
+      tgtNode.setAttribute('stroke', computed.stroke)
+      if (computed.strokeWidth) tgtNode.setAttribute('stroke-width', computed.strokeWidth)
       if (computed.strokeDasharray && computed.strokeDasharray !== 'none') {
-        tgt.setAttribute('stroke-dasharray', computed.strokeDasharray)
+        tgtNode.setAttribute('stroke-dasharray', computed.strokeDasharray)
       }
     }
-    if (computed.opacity) {
-      tgt.setAttribute('opacity', computed.opacity)
+    if (computed.opacity && computed.opacity !== '1') {
+      tgtNode.setAttribute('opacity', computed.opacity)
     }
+  }
 
-    // 2. Text typography & coloring
-    if (tag === 'text') {
-      tgt.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif')
-      if (computed.fontSize) tgt.setAttribute('font-size', computed.fontSize)
-      if (computed.fontWeight) tgt.setAttribute('font-weight', computed.fontWeight)
-      if (computed.textAnchor) tgt.setAttribute('text-anchor', computed.textAnchor)
-      if (computed.dominantBaseline) tgt.setAttribute('dominant-baseline', computed.dominantBaseline)
-      
-      // Text fill resolution
-      if (computed.fill && computed.fill !== 'none') {
-        tgt.setAttribute('fill', computed.fill)
-      } else if (computed.color) {
-        tgt.setAttribute('fill', computed.color)
-      }
+  // 2. Text typography & coloring
+  if (tag === 'text') {
+    tgtNode.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif')
+    if (computed.fontSize) tgtNode.setAttribute('font-size', computed.fontSize)
+    if (computed.fontWeight) tgtNode.setAttribute('font-weight', computed.fontWeight)
+    if (computed.textAnchor) tgtNode.setAttribute('text-anchor', computed.textAnchor)
+    if (computed.dominantBaseline) tgtNode.setAttribute('dominant-baseline', computed.dominantBaseline)
+    
+    if (computed.fill && computed.fill !== 'none') {
+      tgtNode.setAttribute('fill', computed.fill)
+    } else if (computed.color) {
+      tgtNode.setAttribute('fill', computed.color)
+    }
+  }
+
+  // Recurse children synchronously
+  const srcChildren = Array.from(srcNode.children)
+  const tgtChildren = Array.from(tgtNode.children)
+  for (let i = 0; i < srcChildren.length; i++) {
+    if (tgtChildren[i]) {
+      recursivelyInlineStyles(srcChildren[i], tgtChildren[i])
     }
   }
 }
@@ -314,14 +315,12 @@ export async function exportFloorplanToImage({
     try {
       const clone = svgElement.cloneNode(true) as SVGSVGElement
 
-      // 1. Inline all live computed styles so Tailwind colors & fonts are preserved
-      inlineComputedStyles(svgElement, clone)
+      // 1. Recursively copy all computed styles from live DOM
+      recursivelyInlineStyles(svgElement, clone)
 
-      // 2. Clean interactive handles and UI overlays
-      clone.querySelectorAll('.cursor-nwse-resize, .cursor-ew-resize, .cursor-ns-resize, .opacity-40, .cursor-move').forEach(el => {
-        if (el.tagName.toLowerCase() === 'g' && el.querySelector('circle')) {
-          el.remove()
-        }
+      // 2. Remove ONLY the corner resize dots of landmarks (do NOT touch tables or landmarks)
+      clone.querySelectorAll('.cursor-nwse-resize, .cursor-ew-resize, .cursor-ns-resize').forEach(el => {
+        el.remove()
       })
 
       // 3. Normalize dimensions
@@ -352,15 +351,14 @@ export async function exportFloorplanToImage({
           return
         }
 
-        // Enable high quality image smoothing
         ctx.imageSmoothingEnabled = true
         ctx.imageSmoothingQuality = 'high'
 
-        // Fill background
+        // Fill clean dark background
         ctx.fillStyle = backgroundColor
         ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-        // Draw SVG image scaled
+        // Draw image
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         URL.revokeObjectURL(url)
 
@@ -399,7 +397,11 @@ export async function exportFloorplanToImage({
  */
 export function exportFloorplanToSvg(svgElement: SVGSVGElement, filename = 'plano-distribucion-boda.svg') {
   const clone = svgElement.cloneNode(true) as SVGSVGElement
-  inlineComputedStyles(svgElement, clone)
+  recursivelyInlineStyles(svgElement, clone)
+
+  clone.querySelectorAll('.cursor-nwse-resize, .cursor-ew-resize, .cursor-ns-resize').forEach(el => {
+    el.remove()
+  })
 
   clone.setAttribute('viewBox', '0 0 900 650')
   clone.setAttribute('width', '900')
