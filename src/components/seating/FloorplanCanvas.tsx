@@ -753,21 +753,13 @@ export function FloorplanCanvas({
     const countSameType = landmarks.filter(l => l.type === tpl.type).length
     const label = countSameType > 0 ? `${tpl.name} ${countSameType + 1}` : tpl.name
 
-    // Position safely in the spacious center of the canvas, well clear of the toolbar
-    const cascadeOffset = (landmarks.length % 4) * 24
-    const idealX = Math.round(CANVAS_WIDTH / 2 - tpl.width / 2 + cascadeOffset)
-    const idealY = Math.round(CANVAS_HEIGHT / 2 - tpl.height / 2 + cascadeOffset)
-
-    const clampedX = Math.max(50, Math.min(CANVAS_WIDTH - tpl.width - 50, idealX))
-    const clampedY = Math.max(120, Math.min(CANVAS_HEIGHT - tpl.height - 80, idealY))
-
     const newLandmark: FloorplanLandmark = {
       id: `landmark_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       type: tpl.type,
       name: label,
       subtitle: tpl.subtitle,
-      x: clampedX,
-      y: clampedY,
+      x: 320 + ((landmarks.length * 25) % 180),
+      y: 200 + ((landmarks.length * 25) % 180),
       width: tpl.width,
       height: tpl.height,
       rotation: 0,
@@ -775,11 +767,10 @@ export function FloorplanCanvas({
     }
 
     setLandmarks(prev => [...prev, newLandmark])
-    setSelectedLandmarkId(null)
+    setSelectedLandmarkId(newLandmark.id)
     setSelectedTableId(null)
     setShowAddElementMenu(false)
-    setHasUnsavedChanges(true)
-    toast.success(`Se ha añadido ${tpl.name} en el centro del salón`)
+    toast.success(`Se ha añadido ${tpl.name} al salón`)
   }
 
   // Duplicate Landmark
@@ -1956,9 +1947,9 @@ export function FloorplanCanvas({
         {/* Floating Inspector Card for Selected Landmark */}
         {selectedLandmark && !readOnly && (
           <div 
-            className={`absolute bottom-4 ${
-              showUnassignedSidebar ? 'right-4' : 'right-4'
-            } z-30 w-80 sm:w-84 bg-card/95 backdrop-blur-xl p-4 rounded-3xl border border-border shadow-2xl space-y-3.5 animate-in fade-in zoom-in-95 duration-200 ${
+            className={`absolute top-4 ${
+              showUnassignedSidebar ? 'right-4' : selectedLandmark.x > CANVAS_WIDTH * 0.48 ? 'left-4' : 'right-4'
+            } z-30 w-80 sm:w-84 bg-card/95 backdrop-blur-xl p-4 rounded-3xl border border-border shadow-2xl space-y-3.5 animate-in fade-in duration-200 ${
               isInteracting ? 'pointer-events-none opacity-20' : 'opacity-100'
             }`}
           >
