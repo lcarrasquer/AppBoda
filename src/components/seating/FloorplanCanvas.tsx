@@ -652,16 +652,7 @@ export function FloorplanCanvas({
   const handleSavePositions = async () => {
     // Block saving if there are overlapping elements
     if (collisions.length > 0) {
-      const collisionList = collisions
-        .slice(0, 3)
-        .map(c => `${c.name1} con ${c.name2}`)
-        .join(', ')
-      const extraCount = collisions.length > 3 ? ` (+${collisions.length - 3} más)` : ''
-
-      toast.error(
-        `⚠️ No se puede guardar: Hay ${collisions.length} ${collisions.length === 1 ? 'solapamiento' : 'solapamientos'} (${collisionList}${extraCount}). Separa los elementos en el salón para poder guardar.`,
-        { duration: 5000 }
-      )
+      toast.error('No se puede guardar el plano mientras haya elementos solapados. Sepáralos para continuar.')
       return
     }
 
