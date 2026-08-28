@@ -248,13 +248,62 @@ export function detectCollisions(tables: SeatingTable[], landmarks: FloorplanLan
 }
 
 /**
- * Exports the SVG floorplan to high-resolution PNG image.
+ * Inlines computed CSS styles (Tailwind classes, CSS variables, typography)
+ * from the live DOM SVG onto a cloned SVG so it renders independently as image or standalone SVG.
+ */
+function inlineComputedStyles(sourceSvg: SVGSVGElement, targetSvg: SVGSVGElement) {
+  const sourceElements = Array.from(sourceSvg.querySelectorAll('*'))
+  const targetElements = Array.from(targetSvg.querySelectorAll('*'))
+
+  for (let i = 0; i < sourceElements.length; i++) {
+    const src = sourceElements[i] as SVGElement
+    const tgt = targetElements[i] as SVGElement
+    if (!src || !tgt) continue
+
+    const computed = window.getComputedStyle(src)
+    const tag = src.tagName.toLowerCase()
+
+    // 1. Fill & Stroke
+    if (computed.fill && computed.fill !== 'none') {
+      tgt.setAttribute('fill', computed.fill)
+    }
+    if (computed.stroke && computed.stroke !== 'none') {
+      tgt.setAttribute('stroke', computed.stroke)
+      if (computed.strokeWidth) tgt.setAttribute('stroke-width', computed.strokeWidth)
+      if (computed.strokeDasharray && computed.strokeDasharray !== 'none') {
+        tgt.setAttribute('stroke-dasharray', computed.strokeDasharray)
+      }
+    }
+    if (computed.opacity) {
+      tgt.setAttribute('opacity', computed.opacity)
+    }
+
+    // 2. Text typography & coloring
+    if (tag === 'text') {
+      tgt.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif')
+      if (computed.fontSize) tgt.setAttribute('font-size', computed.fontSize)
+      if (computed.fontWeight) tgt.setAttribute('font-weight', computed.fontWeight)
+      if (computed.textAnchor) tgt.setAttribute('text-anchor', computed.textAnchor)
+      if (computed.dominantBaseline) tgt.setAttribute('dominant-baseline', computed.dominantBaseline)
+      
+      // Text fill resolution
+      if (computed.fill && computed.fill !== 'none') {
+        tgt.setAttribute('fill', computed.fill)
+      } else if (computed.color) {
+        tgt.setAttribute('fill', computed.color)
+      }
+    }
+  }
+}
+
+/**
+ * Exports the SVG floorplan to a pixel-perfect high-resolution PNG image.
  */
 export async function exportFloorplanToImage({
   svgElement,
   filename = 'plano-distribucion-boda.png',
-  scale = 2.5,
-  backgroundColor = '#0f172a'
+  scale = 3,
+  backgroundColor = '#0F172A'
 }: {
   svgElement: SVGSVGElement
   filename?: string
@@ -263,16 +312,29 @@ export async function exportFloorplanToImage({
 }): Promise<void> {
   return new Promise((resolve, reject) => {
     try {
-      // Clone SVG and set explicit viewBox without pan/zoom transforms
       const clone = svgElement.cloneNode(true) as SVGSVGElement
+
+      // 1. Inline all live computed styles so Tailwind colors & fonts are preserved
+      inlineComputedStyles(svgElement, clone)
+
+      // 2. Clean interactive handles and UI overlays
+      clone.querySelectorAll('.cursor-nwse-resize, .cursor-ew-resize, .cursor-ns-resize, .opacity-40, .cursor-move').forEach(el => {
+        if (el.tagName.toLowerCase() === 'g' && el.querySelector('circle')) {
+          el.remove()
+        }
+      })
+
+      // 3. Normalize dimensions
       clone.setAttribute('viewBox', '0 0 900 650')
       clone.setAttribute('width', '900')
       clone.setAttribute('height', '650')
 
-      // Remove interactive handles from export clone
-      clone.querySelectorAll('.cursor-nwse-resize, .cursor-ew-resize, .cursor-ns-resize, .pointer-events-none').forEach(el => {
-        if (el.tagName.toLowerCase() === 'circle') el.remove()
-      })
+      // Fix grid pattern stroke color for dark background
+      const gridPattern = clone.querySelector('#floor-grid path')
+      if (gridPattern) {
+        gridPattern.setAttribute('stroke', '#334155')
+        gridPattern.setAttribute('stroke-opacity', '0.25')
+      }
 
       const xml = new XMLSerializer().serializeToString(clone)
       const svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' })
@@ -290,17 +352,21 @@ export async function exportFloorplanToImage({
           return
         }
 
-        // Draw clean stylish background
+        // Enable high quality image smoothing
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
+
+        // Fill background
         ctx.fillStyle = backgroundColor
         ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-        // Draw image scaled
+        // Draw SVG image scaled
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         URL.revokeObjectURL(url)
 
         canvas.toBlob(blob => {
           if (!blob) {
-            reject(new Error('Error al generar blob'))
+            reject(new Error('Error al generar archivo PNG'))
             return
           }
           const downloadUrl = URL.createObjectURL(blob)
@@ -315,9 +381,10 @@ export async function exportFloorplanToImage({
         }, 'image/png')
       }
 
-      img.onerror = () => {
+      img.onerror = (e) => {
         URL.revokeObjectURL(url)
-        reject(new Error('Error al cargar SVG para exportación'))
+        console.error('SVG Image load error:', e)
+        reject(new Error('Error al procesar la imagen del plano'))
       }
 
       img.src = url
@@ -328,10 +395,12 @@ export async function exportFloorplanToImage({
 }
 
 /**
- * Exports the raw SVG file.
+ * Exports the clean raw SVG file with all styles inlined.
  */
 export function exportFloorplanToSvg(svgElement: SVGSVGElement, filename = 'plano-distribucion-boda.svg') {
   const clone = svgElement.cloneNode(true) as SVGSVGElement
+  inlineComputedStyles(svgElement, clone)
+
   clone.setAttribute('viewBox', '0 0 900 650')
   clone.setAttribute('width', '900')
   clone.setAttribute('height', '650')
@@ -354,3 +423,4 @@ export function exportFloorplanToSvg(svgElement: SVGSVGElement, filename = 'plan
 export function printFloorplan() {
   window.print()
 }
+
