@@ -1048,30 +1048,30 @@ export function FloorplanCanvas({
                 </Button>
 
                 {showExportMenu && (
-                  <div className="absolute right-0 top-10 z-50 w-56 p-1.5 rounded-2xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="absolute right-0 top-10 z-50 w-64 p-1.5 rounded-2xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-150">
                     <button
                       type="button"
                       onClick={handleExportPNG}
                       disabled={exporting}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer whitespace-nowrap transition-colors"
                     >
-                      <FileImage className="w-4 h-4 text-emerald-500" />
-                      <span>{exporting ? 'Generando...' : 'Descargar Imagen PNG (HD)'}</span>
+                      <FileImage className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>{exporting ? 'Generando imagen...' : 'Descargar Imagen PNG (HD)'}</span>
                     </button>
                     <button
                       type="button"
                       onClick={handleExportSVG}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer whitespace-nowrap transition-colors"
                     >
-                      <Download className="w-4 h-4 text-sky-500" />
+                      <Download className="w-4 h-4 text-sky-500 shrink-0" />
                       <span>Descargar Vectorial SVG</span>
                     </button>
                     <button
                       type="button"
                       onClick={handlePrint}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer border-t border-border/50"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer whitespace-nowrap transition-colors border-t border-border/50"
                     >
-                      <Printer className="w-4 h-4 text-primary" />
+                      <Printer className="w-4 h-4 text-primary shrink-0" />
                       <span>Imprimir Plano</span>
                     </button>
                   </div>
