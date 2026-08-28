@@ -74,7 +74,11 @@ import {
   UserMinus,
   UserPlus,
   Search,
-  UserCheck
+  UserCheck,
+  LayoutTemplate,
+  Crown,
+  Wine,
+  Sparkle
 } from 'lucide-react'
 
 interface FloorplanCanvasProps {
@@ -149,6 +153,7 @@ export function FloorplanCanvas({
   const [pinchDist, setPinchDist] = useState<{ startDist: number; startZoom: number } | null>(null)
   const [showAddElementMenu, setShowAddElementMenu] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showPresetsMenu, setShowPresetsMenu] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   const svgRef = useRef<SVGSVGElement>(null)
@@ -840,80 +845,295 @@ export function FloorplanCanvas({
     }))
   }
 
-  // Dynamic Auto-Alignment Grid
+  // Auto-Grid Alignment (3 columns grid layout)
   const handleAutoGrid = () => {
     pushUndo({ tables, landmarks })
-    const visibleLandmarks = landmarks.filter(l => l.visible)
-    const marginAroundLandmarks = 65
-    const minTableDistance = 120
+    const cols = tables.length <= 6 ? 3 : 4
+    const spacingX = cols === 3 ? 240 : 195
+    const spacingY = 170
+    const startX = cols === 3 ? 210 : 160
+    const startY = 160
 
-    const collidesWithLandmarks = (x: number, y: number) => {
-      return visibleLandmarks.some(lm => {
-        return (
-          x >= lm.x - marginAroundLandmarks &&
-          x <= lm.x + lm.width + marginAroundLandmarks &&
-          y >= lm.y - marginAroundLandmarks &&
-          y <= lm.y + lm.height + marginAroundLandmarks
-        )
-      })
-    }
-
-    const xSteps = [110, 225, 340, 450, 560, 675, 790]
-    const ySteps = [100, 210, 320, 430, 540]
-
-    const rawCandidates: { x: number; y: number; distFromCenter: number; side: 'left' | 'right' | 'center' }[] = []
-    const centerX = CANVAS_WIDTH / 2
-    const centerY = CANVAS_HEIGHT / 2
-
-    for (const y of ySteps) {
-      for (const x of xSteps) {
-        if (!collidesWithLandmarks(x, y)) {
-          const side = x < centerX - 40 ? 'left' : x > centerX + 40 ? 'right' : 'center'
-          const distFromCenter = Math.hypot(x - centerX, y - centerY)
-          rawCandidates.push({ x, y, distFromCenter, side })
-        }
-      }
-    }
-
-    const selectedSlots: { x: number; y: number }[] = []
-    const leftSlots = rawCandidates.filter(c => c.side === 'left')
-    const rightSlots = rawCandidates.filter(c => c.side === 'right')
-    const centerSlots = rawCandidates.filter(c => c.side === 'center')
-
-    const maxItems = Math.max(leftSlots.length, rightSlots.length, centerSlots.length)
-    const prioritizedSlots: { x: number; y: number }[] = []
-    for (let i = 0; i < maxItems; i++) {
-      if (leftSlots[i]) prioritizedSlots.push(leftSlots[i])
-      if (rightSlots[i]) prioritizedSlots.push(rightSlots[i])
-      if (centerSlots[i]) prioritizedSlots.push(centerSlots[i])
-    }
-
-    for (const cand of prioritizedSlots) {
-      const tooClose = selectedSlots.some(s => Math.hypot(s.x - cand.x, s.y - cand.y) < minTableDistance)
-      if (!tooClose) {
-        selectedSlots.push({ x: cand.x, y: cand.y })
-      }
-    }
-
-    setTables(prev => prev.map((t, idx) => {
-      if (idx < selectedSlots.length) {
-        return {
-          ...t,
-          pos_x: selectedSlots[idx].x,
-          pos_y: selectedSlots[idx].y
-        }
-      }
-      const fallbackCol = idx % 4
-      const fallbackRow = Math.floor(idx / 4)
+    const updated = tables.map((t, idx) => {
+      const row = Math.floor(idx / cols)
+      const col = idx % cols
       return {
         ...t,
-        pos_x: 100 + fallbackCol * 220,
-        pos_y: 100 + fallbackRow * 150
+        pos_x: startX + col * spacingX,
+        pos_y: startY + row * spacingY,
+        rotation: 0
       }
-    }))
+    })
 
-    toast.success('¡Mesas auto-alineadas respetando todos los elementos de la sala! 📐✨')
+    setTables(updated)
+    setHasUnsavedChanges(true)
+    toast.success('Mesas organizadas automáticamente en cuadrícula')
   }
+
+  // Apply Layout Presets (Banquete Clásico, Imperial, Cóctel)
+  const handleApplyPreset = (presetKey: 'classic' | 'imperial' | 'cocktail' | 'grid') => {
+    pushUndo({ tables, landmarks })
+
+    if (presetKey === 'grid') {
+      handleAutoGrid()
+      setShowPresetsMenu(false)
+      return
+    }
+
+    if (presetKey === 'classic') {
+      // 1. Banquete Clásico (Simétrico con Pista Central)
+      const newLandmarks: FloorplanLandmark[] = [
+        {
+          id: `stage_${Date.now()}`,
+          type: 'stage',
+          name: '🎪 PRESIDENCIA / ESCENARIO',
+          x: 300,
+          y: 30,
+          width: 300,
+          height: 44,
+          rotation: 0,
+          visible: true
+        },
+        {
+          id: `dancefloor_${Date.now()}`,
+          type: 'dancefloor',
+          name: '💃 PISTA DE BAILE 🕺',
+          subtitle: 'Zona de Baile',
+          x: 360,
+          y: 250,
+          width: 180,
+          height: 130,
+          rotation: 0,
+          visible: true
+        },
+        {
+          id: `entrance_${Date.now()}`,
+          type: 'entrance',
+          name: '🚪 ENTRADA PRINCIPAL',
+          x: 40,
+          y: 575,
+          width: 150,
+          height: 38,
+          rotation: 0,
+          visible: true
+        },
+        {
+          id: `bar_${Date.now()}`,
+          type: 'bar',
+          name: '🍸 BARRA LIBRE',
+          x: 700,
+          y: 575,
+          width: 160,
+          height: 40,
+          rotation: 0,
+          visible: true
+        }
+      ]
+
+      const newTables = tables.map((t, idx) => {
+        if (idx === 0) {
+          return {
+            ...t,
+            shape: 'rectangle' as const,
+            pos_x: 450,
+            pos_y: 115,
+            rotation: 0
+          }
+        }
+
+        const sideIdx = idx - 1
+        const isLeft = sideIdx % 2 === 0
+        const slot = Math.floor(sideIdx / 2)
+        const row = Math.floor(slot / 2)
+        const col = slot % 2
+
+        const posX = isLeft 
+          ? 120 + col * 125 
+          : 655 + col * 125
+        const posY = 190 + row * 150
+
+        return {
+          ...t,
+          shape: 'round' as const,
+          pos_x: Math.min(CANVAS_WIDTH - 60, Math.max(60, posX)),
+          pos_y: Math.min(CANVAS_HEIGHT - 60, Math.max(120, posY)),
+          rotation: 0
+        }
+      })
+
+      setLandmarks(newLandmarks)
+      setTables(newTables)
+      setHasUnsavedChanges(true)
+      setShowPresetsMenu(false)
+      toast.success('💃 ¡Plantilla "Banquete Clásico" aplicada!')
+    } else if (presetKey === 'imperial') {
+      // 2. Banquete Imperial (Mesas Alargadas Rectangulares)
+      const newLandmarks: FloorplanLandmark[] = [
+        {
+          id: `stage_${Date.now()}`,
+          type: 'stage',
+          name: '🎪 PRESIDENCIA / ESCENARIO',
+          x: 300,
+          y: 30,
+          width: 300,
+          height: 44,
+          rotation: 0,
+          visible: true
+        },
+        {
+          id: `dj_${Date.now()}`,
+          type: 'dj',
+          name: '🎧 CABINA DJ',
+          x: 740,
+          y: 30,
+          width: 110,
+          height: 50,
+          rotation: 0,
+          visible: true
+        },
+        {
+          id: `dancefloor_${Date.now()}`,
+          type: 'dancefloor',
+          name: '💃 PISTA DE BAILE 🕺',
+          subtitle: 'Zona de Baile',
+          x: 360,
+          y: 490,
+          width: 180,
+          height: 110,
+          rotation: 0,
+          visible: true
+        },
+        {
+          id: `bar_${Date.now()}`,
+          type: 'bar',
+          name: '🍸 BARRA LIBRE',
+          x: 50,
+          y: 575,
+          width: 160,
+          height: 40,
+          rotation: 0,
+          visible: true
+        }
+      ]
+
+      const newTables = tables.map((t, idx) => {
+        if (idx === 0) {
+          return {
+            ...t,
+            shape: 'rectangle' as const,
+            pos_x: 450,
+            pos_y: 115,
+            rotation: 0
+          }
+        }
+
+        const wingIdx = idx - 1
+        const isLeft = wingIdx % 2 === 0
+        const row = Math.floor(wingIdx / 2)
+
+        const posX = isLeft ? 190 : 710
+        const posY = 180 + row * 105
+
+        return {
+          ...t,
+          shape: 'rectangle' as const,
+          pos_x: posX,
+          pos_y: Math.min(CANVAS_HEIGHT - 60, posY),
+          rotation: 90
+        }
+      })
+
+      setLandmarks(newLandmarks)
+      setTables(newTables)
+      setHasUnsavedChanges(true)
+      setShowPresetsMenu(false)
+      toast.success('👑 ¡Plantilla "Banquete Imperial" aplicada!')
+    } else if (presetKey === 'cocktail') {
+      // 3. Boda Cóctel & Chill Out
+      const newLandmarks: FloorplanLandmark[] = [
+        {
+          id: `bar_${Date.now()}`,
+          type: 'bar',
+          name: '🍸 BARRA PRINCIPAL',
+          x: 360,
+          y: 270,
+          width: 180,
+          height: 50,
+          rotation: 0,
+          visible: true
+        },
+        {
+          id: `chill1_${Date.now()}`,
+          type: 'chillout',
+          name: '🛋️ LOUNGE NORTE',
+          x: 50,
+          y: 40,
+          width: 170,
+          height: 80,
+          rotation: 0,
+          visible: true
+        },
+        {
+          id: `chill2_${Date.now()}`,
+          type: 'chillout',
+          name: '🛋️ LOUNGE SUR',
+          x: 680,
+          y: 40,
+          width: 170,
+          height: 80,
+          rotation: 0,
+          visible: true
+        },
+        {
+          id: `photo_${Date.now()}`,
+          type: 'photocall',
+          name: '📸 PHOTOCALL',
+          x: 50,
+          y: 540,
+          width: 140,
+          height: 70,
+          rotation: 0,
+          visible: true
+        },
+        {
+          id: `dj_${Date.now()}`,
+          type: 'dj',
+          name: '🎧 CABINA DJ',
+          x: 710,
+          y: 540,
+          width: 120,
+          height: 60,
+          rotation: 0,
+          visible: true
+        }
+      ]
+
+      const newTables = tables.map((t, idx) => {
+        const total = tables.length || 1
+        const angle = (idx / total) * 2 * Math.PI - Math.PI / 2
+        const radiusX = 280
+        const radiusY = 170
+        const posX = Math.round(450 + radiusX * Math.cos(angle))
+        const posY = Math.round(300 + radiusY * Math.sin(angle))
+
+        return {
+          ...t,
+          shape: 'round' as const,
+          pos_x: Math.max(70, Math.min(CANVAS_WIDTH - 70, posX)),
+          pos_y: Math.max(120, Math.min(CANVAS_HEIGHT - 70, posY)),
+          rotation: 0
+        }
+      })
+
+      setLandmarks(newLandmarks)
+      setTables(newTables)
+      setHasUnsavedChanges(true)
+      setShowPresetsMenu(false)
+      toast.success('🍸 ¡Plantilla "Boda Cóctel & Chill Out" aplicada!')
+    }
+  }
+
+
 
   // Export handlers
   const handleExportPNG = async () => {
@@ -1106,12 +1326,13 @@ export function FloorplanCanvas({
       {!readOnly && (
         <>
           {/* Transparent Backdrop to close open menus on click outside */}
-          {(showAddElementMenu || showExportMenu) && (
+          {(showAddElementMenu || showExportMenu || showPresetsMenu) && (
             <div 
               className="fixed inset-0 z-40 bg-transparent" 
               onClick={() => {
                 setShowAddElementMenu(false)
                 setShowExportMenu(false)
+                setShowPresetsMenu(false)
               }} 
             />
           )}
@@ -1233,17 +1454,84 @@ export function FloorplanCanvas({
                 )}
               </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAutoGrid}
-                className="h-8 text-xs font-semibold rounded-xl gap-1.5 cursor-pointer shrink-0"
-                title="Alinear automáticamente en cuadrícula"
-              >
-                <Grid className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">Auto-Alinear</span>
-              </Button>
+              {/* Layout Presets Dropdown */}
+              <div className="relative shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { 
+                    setShowPresetsMenu(!showPresetsMenu)
+                    setShowAddElementMenu(false)
+                    setShowExportMenu(false)
+                    setShowUnassignedSidebar(false)
+                  }}
+                  className="h-8 text-xs font-semibold rounded-xl gap-1.5 cursor-pointer bg-card hover:bg-muted border-border"
+                  title="Aplicar plantillas de distribución de salón con un clic"
+                >
+                  <LayoutTemplate className="w-3.5 h-3.5 text-primary" />
+                  <span className="hidden lg:inline">Plantillas</span>
+                </Button>
+
+                {showPresetsMenu && (
+                  <div className="absolute right-0 top-10 z-50 w-72 p-2 rounded-2xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="px-2.5 py-1.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/60 flex items-center justify-between">
+                      <span>Plantillas de Salón:</span>
+                      <Sparkle className="w-3 h-3 text-primary animate-pulse" />
+                    </div>
+                    
+                    <div className="space-y-1 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset('classic')}
+                        className="w-full flex items-start gap-3 p-2.5 rounded-xl text-left hover:bg-muted/80 transition-colors cursor-pointer group"
+                      >
+                        <span className="text-xl p-1.5 rounded-lg bg-sky-500/10 text-sky-500 shrink-0 group-hover:scale-110 transition-transform">💃</span>
+                        <div>
+                          <div className="text-xs font-black text-foreground">Banquete Clásico</div>
+                          <div className="text-[11px] text-muted-foreground">Presidencia al frente, pista de baile central y mesas simétricas.</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset('imperial')}
+                        className="w-full flex items-start gap-3 p-2.5 rounded-xl text-left hover:bg-muted/80 transition-colors cursor-pointer group"
+                      >
+                        <span className="text-xl p-1.5 rounded-lg bg-amber-500/10 text-amber-500 shrink-0 group-hover:scale-110 transition-transform">👑</span>
+                        <div>
+                          <div className="text-xs font-black text-foreground">Banquete Imperial</div>
+                          <div className="text-[11px] text-muted-foreground">Mesas rectangulares alargadas en dos grandes alas paralelas.</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset('cocktail')}
+                        className="w-full flex items-start gap-3 p-2.5 rounded-xl text-left hover:bg-muted/80 transition-colors cursor-pointer group"
+                      >
+                        <span className="text-xl p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0 group-hover:scale-110 transition-transform">🍸</span>
+                        <div>
+                          <div className="text-xs font-black text-foreground">Boda Cóctel & Chill Out</div>
+                          <div className="text-[11px] text-muted-foreground">Barra central con zonas lounge de sofás, photocall y DJ.</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset('grid')}
+                        className="w-full flex items-start gap-3 p-2.5 rounded-xl text-left hover:bg-muted/80 transition-colors cursor-pointer group border-t border-border/50 pt-2"
+                      >
+                        <span className="text-xl p-1.5 rounded-lg bg-primary/10 text-primary shrink-0 group-hover:scale-110 transition-transform">📐</span>
+                        <div>
+                          <div className="text-xs font-black text-foreground">Cuadrícula Simétrica</div>
+                          <div className="text-[11px] text-muted-foreground">Alineación automática de mesas en cuadrícula ordenada.</div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Export Menu Dropdown */}
               <div className="relative shrink-0">
