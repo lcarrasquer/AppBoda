@@ -65,12 +65,28 @@ export async function getSeatingPlan(eventId: string): Promise<{
     }
 
     const assignments = (assignmentsRes.data || []) as SeatingAssignment[]
-    const tables: SeatingTable[] = ((tablesRes.data || []) as any[]).map((t: any) => ({
-      ...t,
-      assignments: assignments.filter((a: any) => a.table_id === t.id)
-    }))
+    const rawTables = (tablesRes.data || []) as any[]
 
-    const landmarks: FloorplanLandmark[] = (landmarksRes?.data as FloorplanLandmark[]) || []
+    // Extract landmarks from database (either seating_landmarks table or seating_tables metadata row)
+    let landmarks: FloorplanLandmark[] = (landmarksRes?.data as FloorplanLandmark[]) || []
+    const landmarkMetaRow = rawTables.find(t => t.table_number === '__floorplan_landmarks__')
+    if (landmarkMetaRow?.notes) {
+      try {
+        const parsed = JSON.parse(landmarkMetaRow.notes)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          landmarks = parsed
+        }
+      } catch (e) {
+        console.error('Error parsing stored landmarks:', e)
+      }
+    }
+
+    const tables: SeatingTable[] = rawTables
+      .filter((t: any) => t.table_number !== '__floorplan_landmarks__')
+      .map((t: any) => ({
+        ...t,
+        assignments: assignments.filter((a: any) => a.table_id === t.id)
+      }))
 
     // Calculate unassigned guests from registered guests
     const assignedNamesSet = new Set<string>()
@@ -98,7 +114,7 @@ export async function getSeatingPlan(eventId: string): Promise<{
   }
 }
 
-// 1.1 Save room landmarks in database
+// 1.1 Save room landmarks in database (persisted directly to Supabase cloud)
 export async function saveFloorplanLandmarks(
   eventId: string,
   landmarks: FloorplanLandmark[]
@@ -106,40 +122,64 @@ export async function saveFloorplanLandmarks(
   try {
     const supabase = getAdminClient()
 
-    // Delete existing landmarks for this event
-    await supabase
-      .from('seating_landmarks')
-      .delete()
-      .eq('event_id', eventId)
-
-    if (landmarks.length > 0) {
-      const records = landmarks.map(lm => ({
-        id: lm.id,
-        event_id: eventId,
-        type: lm.type,
-        name: lm.name,
-        subtitle: lm.subtitle || null,
-        x: Math.round(lm.x),
-        y: Math.round(lm.y),
-        width: Math.round(lm.width),
-        height: Math.round(lm.height),
-        rotation: lm.rotation || 0,
-        visible: lm.visible ?? true
-      }))
-
-      const { error } = await supabase
+    // 1. Try to upsert into dedicated seating_landmarks table if present
+    try {
+      await supabase
         .from('seating_landmarks')
-        .insert(records)
+        .delete()
+        .eq('event_id', eventId)
 
-      if (error) {
-        console.warn('Could not insert into seating_landmarks (table might need migration):', error.message)
+      if (landmarks.length > 0) {
+        const records = landmarks.map(lm => ({
+          id: lm.id,
+          event_id: eventId,
+          type: lm.type,
+          name: lm.name,
+          subtitle: lm.subtitle || null,
+          x: Math.round(lm.x),
+          y: Math.round(lm.y),
+          width: Math.round(lm.width),
+          height: Math.round(lm.height),
+          rotation: lm.rotation || 0,
+          visible: lm.visible ?? true
+        }))
+
+        await supabase.from('seating_landmarks').insert(records)
       }
+    } catch {
+      // ignore
+    }
+
+    // 2. Persist in cloud seating_tables metadata row for guaranteed cross-device sync
+    const { data: existing } = await supabase
+      .from('seating_tables')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('table_number', '__floorplan_landmarks__')
+      .limit(1)
+
+    if (existing && existing.length > 0) {
+      await supabase
+        .from('seating_tables')
+        .update({ notes: JSON.stringify(landmarks) })
+        .eq('id', existing[0].id)
+    } else {
+      await supabase
+        .from('seating_tables')
+        .insert({
+          event_id: eventId,
+          table_number: '__floorplan_landmarks__',
+          table_name: '__floorplan_landmarks__',
+          notes: JSON.stringify(landmarks),
+          capacity: 0,
+          position_order: 999
+        })
     }
 
     revalidatePath(`/dashboard/${eventId}/seating`)
     return { success: true }
   } catch (err: any) {
-    console.warn('Error saving landmarks to DB (fallback to local):', err)
+    console.warn('Error saving landmarks to DB:', err)
     return { error: err.message }
   }
 }
