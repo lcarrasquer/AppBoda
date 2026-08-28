@@ -33,6 +33,7 @@ import {
   Move, 
   RotateCw, 
   Maximize2, 
+  Minimize2,
   Sparkles, 
   Save, 
   Layers, 
@@ -148,10 +149,35 @@ export function FloorplanCanvas({
   const [pinchDist, setPinchDist] = useState<{ startDist: number; startZoom: number } | null>(null)
   const [showAddElementMenu, setShowAddElementMenu] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const fullWrapperRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
+
+  // Fullscreen state listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
+  const handleToggleFullscreen = useCallback(async () => {
+    if (!fullWrapperRef.current) return
+    try {
+      if (!document.fullscreenElement) {
+        await fullWrapperRef.current.requestFullscreen()
+      } else {
+        await document.exitFullscreen()
+      }
+    } catch (err) {
+      console.error('Fullscreen toggle error:', err)
+      setIsFullscreen(prev => !prev)
+    }
+  }, [])
 
   // Sync unassigned guests from prop
   useEffect(() => {
@@ -670,12 +696,15 @@ export function FloorplanCanvas({
         e.preventDefault()
         setZoom(1)
         setPan({ x: 0, y: 0 })
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault()
+        handleToggleFullscreen()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleUndo, handleRedo])
+  }, [handleUndo, handleRedo, handleToggleFullscreen])
 
   // Save positions (Tables + Landmarks in DB & LocalStorage)
   const handleSavePositions = async () => {
@@ -1061,7 +1090,14 @@ export function FloorplanCanvas({
   const isInteracting = Boolean(draggingItem || resizingLandmark)
 
   return (
-    <div className="space-y-4 select-none">
+    <div 
+      ref={fullWrapperRef}
+      className={`select-none transition-all duration-200 ${
+        isFullscreen 
+          ? 'fixed inset-0 z-50 bg-slate-950 p-3 sm:p-5 overflow-y-auto flex flex-col justify-between' 
+          : 'space-y-4'
+      }`}
+    >
       
       {/* Admin Floorplan Controls Header */}
       {!readOnly && (
@@ -1462,6 +1498,23 @@ export function FloorplanCanvas({
             aria-label="Centrar plano"
           >
             <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="w-[1px] h-4 bg-border/80 mx-0.5" />
+
+          {/* Fullscreen Toggle Button */}
+          <button
+            type="button"
+            onClick={handleToggleFullscreen}
+            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+              isFullscreen 
+                ? 'bg-primary text-primary-foreground shadow-sm' 
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted active:scale-90'
+            }`}
+            title={isFullscreen ? 'Salir de pantalla completa (F o Esc)' : 'Modo Pantalla Completa (F)'}
+            aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+          >
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
         </div>
 
