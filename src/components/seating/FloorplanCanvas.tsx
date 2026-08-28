@@ -1077,7 +1077,7 @@ export function FloorplanCanvas({
             />
           )}
 
-          <div className="flex items-center justify-between gap-2 p-2.5 bg-muted/40 rounded-2xl border border-border relative z-40 overflow-x-auto no-scrollbar">
+          <div className="flex items-center justify-between gap-2 p-2.5 bg-muted/40 rounded-2xl border border-border relative z-40 overflow-visible">
             
             {/* Left toolbar items: Undo/Redo, Snapping, Pending changes indicator */}
             <div className="flex items-center gap-1.5 shrink-0">
