@@ -1077,10 +1077,10 @@ export function FloorplanCanvas({
             />
           )}
 
-          <div className="flex items-center justify-between gap-3 p-3 bg-muted/40 rounded-2xl border border-border flex-wrap relative z-40">
+          <div className="flex items-center justify-between gap-2 p-2.5 bg-muted/40 rounded-2xl border border-border relative z-40 overflow-x-auto no-scrollbar">
             
             {/* Left toolbar items: Undo/Redo, Snapping, Pending changes indicator */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 shrink-0">
               <div className="flex items-center bg-card/80 border border-border rounded-xl p-0.5 shadow-2xs">
                 <Button
                   type="button"
@@ -1111,24 +1111,24 @@ export function FloorplanCanvas({
                 variant={snappingEnabled ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setSnappingEnabled(!snappingEnabled)}
-                className={`h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer ${
+                className={`h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer shrink-0 ${
                   snappingEnabled ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs' : 'text-muted-foreground'
                 }`}
                 title="Activar/Desactivar Guías Magnéticas Inteligentes"
               >
                 <Magnet className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Guías Magnéticas</span>
+                <span className="hidden xl:inline">Guías</span>
               </Button>
 
               {hasUnsavedChanges && (
-                <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-extrabold border border-amber-500/20 animate-pulse">
-                  Cambios sin guardar
+                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-extrabold border border-amber-500/20 animate-pulse shrink-0 whitespace-nowrap">
+                  Sin guardar
                 </span>
               )}
             </div>
 
             {/* Right toolbar items: Unassigned Guests, Add Elements, Auto-Grid, Export, Save */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 shrink-0">
               
               {/* Unassigned Guests Toggle Button */}
               <Button
@@ -1140,7 +1140,7 @@ export function FloorplanCanvas({
                   setShowAddElementMenu(false)
                   setShowExportMenu(false)
                 }}
-                className={`h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer transition-all ${
+                className={`h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer transition-all shrink-0 ${
                   showUnassignedSidebar
                     ? 'bg-primary text-primary-foreground shadow-md'
                     : 'bg-card text-foreground hover:bg-muted border-border'
@@ -1148,7 +1148,7 @@ export function FloorplanCanvas({
                 title="Abrir panel de invitados sin mesa para arrastrar al plano"
               >
                 <Users className="w-3.5 h-3.5 text-primary shrink-0" />
-                <span>Sin mesa</span>
+                <span className="hidden md:inline">Sin mesa</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
                   unassignedGuests.length > 0
                     ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
@@ -1159,7 +1159,7 @@ export function FloorplanCanvas({
               </Button>
 
               {/* Add New Room Element Dropdown */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <Button
                   type="button"
                   variant="outline"
@@ -1199,15 +1199,15 @@ export function FloorplanCanvas({
                 variant="outline"
                 size="sm"
                 onClick={handleAutoGrid}
-                className="h-8 text-xs font-semibold rounded-xl gap-1.5 cursor-pointer"
+                className="h-8 text-xs font-semibold rounded-xl gap-1.5 cursor-pointer shrink-0"
                 title="Alinear automáticamente en cuadrícula"
               >
                 <Grid className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">Auto-Alinear</span>
+                <span className="hidden lg:inline">Auto-Alinear</span>
               </Button>
 
               {/* Export Menu Dropdown */}
-              <div className="relative">
+              <div className="relative shrink-0">
                 <Button
                   type="button"
                   variant="outline"
@@ -1248,7 +1248,7 @@ export function FloorplanCanvas({
                 size="sm"
                 onClick={handleSavePositions}
                 disabled={saving || (!hasUnsavedChanges && collisions.length === 0)}
-                className={`h-8 text-xs font-bold rounded-xl gap-1.5 shadow-md cursor-pointer transition-all ${
+                className={`h-8 text-xs font-bold rounded-xl gap-1.5 shadow-md cursor-pointer transition-all shrink-0 ${
                   collisions.length > 0
                     ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground border border-destructive animate-pulse'
                     : 'bg-primary text-primary-foreground'
