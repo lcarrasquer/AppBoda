@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { SeatingTable, SeatingAssignment, FloorplanLandmark } from '@/lib/seating/types'
+import { SeatingTable, SeatingAssignment, FloorplanLandmark, UnassignedGuest } from '@/lib/seating/types'
 
 function getAdminClient() {
   return createSupabaseClient(
@@ -11,16 +11,17 @@ function getAdminClient() {
   )
 }
 
-// 1. Get all tables, their seated guests, and room landmarks
+// 1. Get all tables, their seated guests, room landmarks, and unassigned guests
 export async function getSeatingPlan(eventId: string): Promise<{
   tables: SeatingTable[]
   landmarks?: FloorplanLandmark[]
+  unassignedGuests?: UnassignedGuest[]
   error?: string
 }> {
   try {
     const supabase = getAdminClient()
 
-    const [tablesRes, assignmentsRes, landmarksRes] = await Promise.all([
+    const [tablesRes, assignmentsRes, landmarksRes, guestsRes] = await Promise.all([
       supabase
         .from('seating_tables')
         .select('*')
@@ -34,6 +35,17 @@ export async function getSeatingPlan(eventId: string): Promise<{
         try {
           return await supabase
             .from('seating_landmarks')
+            .select('*')
+            .eq('event_id', eventId)
+            .order('created_at', { ascending: true })
+        } catch {
+          return { data: null, error: null }
+        }
+      })(),
+      (async () => {
+        try {
+          return await supabase
+            .from('guests')
             .select('*')
             .eq('event_id', eventId)
             .order('created_at', { ascending: true })
@@ -60,7 +72,26 @@ export async function getSeatingPlan(eventId: string): Promise<{
 
     const landmarks: FloorplanLandmark[] = (landmarksRes?.data as FloorplanLandmark[]) || []
 
-    return { tables, landmarks }
+    // Calculate unassigned guests from registered guests
+    const assignedNamesSet = new Set<string>()
+    for (const a of assignments) {
+      if (a.guest_name) assignedNamesSet.add(a.guest_name.toLowerCase().trim())
+      if (a.companion_names) {
+        a.companion_names.split(',').forEach(c => assignedNamesSet.add(c.toLowerCase().trim()))
+      }
+    }
+
+    const registeredGuests = (guestsRes.data || []) as any[]
+    const unassignedGuests: UnassignedGuest[] = registeredGuests
+      .filter(g => g.full_name && !assignedNamesSet.has(g.full_name.toLowerCase().trim()))
+      .map(g => ({
+        id: g.id,
+        name: g.full_name,
+        companionCount: 0,
+        dietary: null
+      }))
+
+    return { tables, landmarks, unassignedGuests }
   } catch (err: any) {
     console.error('Error in getSeatingPlan:', err)
     return { tables: [], error: err.message || 'Error al obtener las mesas' }

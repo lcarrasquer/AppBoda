@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { SeatingTable, SeatingAssignment, FloorplanLandmark, getAssignmentSeatCount, getTablePeopleCount, getExpandedTableGuests } from '@/lib/seating/types'
+import { SeatingTable, SeatingAssignment, FloorplanLandmark, UnassignedGuest, getAssignmentSeatCount, getTablePeopleCount, getExpandedTableGuests } from '@/lib/seating/types'
 import { 
   createOrUpdateTable, 
   deleteTable, 
@@ -51,6 +51,7 @@ interface SeatingManagerProps {
   event: any
   initialTables: SeatingTable[]
   initialLandmarks?: FloorplanLandmark[]
+  initialUnassignedGuests?: UnassignedGuest[]
 }
 
 const DIETARY_PRESETS = [
@@ -63,9 +64,10 @@ const DIETARY_PRESETS = [
   { label: '🥛 Sin Lactosa', value: 'Sin Lactosa' },
 ]
 
-export function SeatingManager({ eventId, event, initialTables, initialLandmarks }: SeatingManagerProps) {
+export function SeatingManager({ eventId, event, initialTables, initialLandmarks, initialUnassignedGuests }: SeatingManagerProps) {
   const [tables, setTables] = useState<SeatingTable[]>(initialTables)
   const [landmarks, setLandmarks] = useState<FloorplanLandmark[]>(initialLandmarks || [])
+  const [unassignedGuests, setUnassignedGuests] = useState<UnassignedGuest[]>(initialUnassignedGuests || [])
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'grid' | 'floorplan'>('grid')
 
@@ -587,6 +589,7 @@ export function SeatingManager({ eventId, event, initialTables, initialLandmarks
           eventId={eventId}
           tables={tables}
           initialLandmarks={landmarks}
+          initialUnassignedGuests={unassignedGuests}
           onEditTable={handleOpenEditTable}
           onAddGuest={handleOpenAddGuest}
         />

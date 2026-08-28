@@ -7,6 +7,8 @@ import {
   LandmarkTemplate, 
   LANDMARK_TEMPLATES, 
   DEFAULT_LANDMARKS,
+  UnassignedGuest,
+  SeatingAssignment,
   getTablePeopleCount, 
   getExpandedTableGuests 
 } from '@/lib/seating/types'
@@ -18,7 +20,12 @@ import {
   SnapGuide, 
   FloorplanSnapshot 
 } from '@/lib/seating/floorplanUtils'
-import { updateTablePositions, saveFloorplanLandmarks } from '@/app/dashboard/[eventId]/seating/actions'
+import { 
+  updateTablePositions, 
+  saveFloorplanLandmarks,
+  addOrUpdateGuest,
+  deleteGuest
+} from '@/app/dashboard/[eventId]/seating/actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
@@ -59,13 +66,21 @@ import {
   Download, 
   FileImage, 
   AlertTriangle, 
-  Magnet 
+  Magnet,
+  GripVertical,
+  ChevronLeft,
+  ChevronRight,
+  UserMinus,
+  UserPlus,
+  Search,
+  UserCheck
 } from 'lucide-react'
 
 interface FloorplanCanvasProps {
   eventId: string
   tables: SeatingTable[]
   initialLandmarks?: FloorplanLandmark[]
+  initialUnassignedGuests?: UnassignedGuest[]
   readOnly?: boolean
   highlightTableId?: string
   onEditTable?: (table: SeatingTable) => void
@@ -79,15 +94,24 @@ export function FloorplanCanvas({
   eventId,
   tables: initialTables,
   initialLandmarks,
+  initialUnassignedGuests,
   readOnly = false,
   highlightTableId,
   onEditTable,
   onAddGuest
 }: FloorplanCanvasProps) {
-  // State for tables and landmarks
+  // State for tables, landmarks, and unassigned guests
   const [tables, setTables] = useState<SeatingTable[]>([])
   const [landmarks, setLandmarks] = useState<FloorplanLandmark[]>(initialLandmarks && initialLandmarks.length > 0 ? initialLandmarks : DEFAULT_LANDMARKS)
+  const [unassignedGuests, setUnassignedGuests] = useState<UnassignedGuest[]>(initialUnassignedGuests || [])
   
+  // Unassigned Guests Drag & Drop & Sidebar State
+  const [showUnassignedSidebar, setShowUnassignedSidebar] = useState(false)
+  const [unassignedSearch, setUnassignedSearch] = useState('')
+  const [newGuestName, setNewGuestName] = useState('')
+  const [draggingGuest, setDraggingGuest] = useState<UnassignedGuest | null>(null)
+  const [dropTargetTableId, setDropTargetTableId] = useState<string | null>(null)
+
   // Selection
   const [selectedTableId, setSelectedTableId] = useState<string | null>(highlightTableId || null)
   const [selectedLandmarkId, setSelectedLandmarkId] = useState<string | null>(null)
@@ -128,6 +152,13 @@ export function FloorplanCanvas({
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
+
+  // Sync unassigned guests from prop
+  useEffect(() => {
+    if (initialUnassignedGuests) {
+      setUnassignedGuests(initialUnassignedGuests)
+    }
+  }, [initialUnassignedGuests])
 
   // Dynamic ViewBox dimensions
   const viewBoxWidth = CANVAS_WIDTH / zoom
@@ -878,6 +909,127 @@ export function FloorplanCanvas({
     toast.success('¡Archivo SVG vectorial descargado! 📐')
   }
 
+  // --- Unassigned Guests Handlers ---
+  const handleAddUnassignedGuest = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if (!newGuestName.trim()) return
+
+    const newGuest: UnassignedGuest = {
+      id: `unassigned_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: newGuestName.trim(),
+      companionCount: 0
+    }
+
+    setUnassignedGuests(prev => [newGuest, ...prev])
+    setNewGuestName('')
+    toast.success(`"${newGuest.name}" añadido a la lista sin mesa`)
+  }
+
+  const handleDeleteUnassignedGuest = (guestId: string) => {
+    setUnassignedGuests(prev => prev.filter(g => g.id !== guestId))
+  }
+
+  const handleAssignGuestToTable = async (tableId: string, guest: UnassignedGuest) => {
+    const targetTable = tables.find(t => t.id === tableId)
+    if (!targetTable) return
+
+    pushUndo({ tables, landmarks })
+
+    const tempAssignmentId = `assign_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+    const newAssignment: SeatingAssignment = {
+      id: tempAssignmentId,
+      event_id: eventId,
+      table_id: tableId,
+      guest_name: guest.name,
+      companion_names: guest.companionNames || null,
+      seats_count: (guest.companionCount || 0) + 1,
+      dietary_requirements: guest.dietary || null,
+      notes: guest.notes || null
+    }
+
+    // Optimistically add to table
+    setTables(prev => prev.map(t => {
+      if (t.id === tableId) {
+        return {
+          ...t,
+          assignments: [...(t.assignments || []), newAssignment]
+        }
+      }
+      return t
+    }))
+
+    // Remove from unassigned
+    setUnassignedGuests(prev => prev.filter(g => g.id !== guest.id))
+    setHasUnsavedChanges(true)
+
+    toast.success(`¡${guest.name} sentado en la Mesa ${targetTable.table_number}! 🪑✨`)
+
+    // Save to DB in background
+    try {
+      const res = await addOrUpdateGuest(eventId, {
+        table_id: tableId,
+        guest_name: guest.name,
+        companion_names: guest.companionNames || undefined,
+        seats_count: (guest.companionCount || 0) + 1,
+        dietary_requirements: guest.dietary || undefined,
+        notes: guest.notes || undefined
+      })
+      if (res.error) {
+        toast.error(res.error)
+      }
+    } catch (err) {
+      console.error('Error saving guest assignment:', err)
+    }
+  }
+
+  const handleUnseatGuest = async (assignment: SeatingAssignment) => {
+    pushUndo({ tables, landmarks })
+
+    // Remove from table
+    setTables(prev => prev.map(t => {
+      if (t.id === assignment.table_id) {
+        return {
+          ...t,
+          assignments: (t.assignments || []).filter(a => a.id !== assignment.id)
+        }
+      }
+      return t
+    }))
+
+    // Return to unassigned
+    const unseated: UnassignedGuest = {
+      id: `unassigned_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: assignment.guest_name,
+      companionNames: assignment.companion_names,
+      companionCount: assignment.seats_count ? assignment.seats_count - 1 : 0,
+      dietary: assignment.dietary_requirements,
+      notes: assignment.notes
+    }
+
+    setUnassignedGuests(prev => [unseated, ...prev])
+    setHasUnsavedChanges(true)
+
+    toast.info(`"${assignment.guest_name}" movido a la lista de comensales sin mesa`)
+
+    // Delete assignment in DB
+    try {
+      await deleteGuest(eventId, assignment.id)
+    } catch (err) {
+      console.error('Error deleting assignment:', err)
+    }
+  }
+
+  // Filtered unassigned guests
+  const filteredUnassignedGuests = useMemo(() => {
+    if (!unassignedSearch.trim()) return unassignedGuests
+    const q = unassignedSearch.toLowerCase().trim()
+    return unassignedGuests.filter(g => 
+      g.name.toLowerCase().includes(q) || 
+      (g.companionNames && g.companionNames.toLowerCase().includes(q)) ||
+      (g.dietary && g.dietary.toLowerCase().includes(q))
+    )
+  }, [unassignedGuests, unassignedSearch])
+
   // Collisions detection
   const collisions = useMemo(() => detectCollisions(tables, landmarks), [tables, landmarks])
   const collidingIds = useMemo(() => {
@@ -975,16 +1127,44 @@ export function FloorplanCanvas({
               )}
             </div>
 
-            {/* Right toolbar items: Add Elements, Auto-Grid, Export, Save */}
+            {/* Right toolbar items: Unassigned Guests, Add Elements, Auto-Grid, Export, Save */}
             <div className="flex items-center gap-2 flex-wrap">
               
+              {/* Unassigned Guests Toggle Button */}
+              <Button
+                type="button"
+                variant={showUnassignedSidebar ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setShowUnassignedSidebar(!showUnassignedSidebar)
+                  setShowAddElementMenu(false)
+                  setShowExportMenu(false)
+                }}
+                className={`h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer transition-all ${
+                  showUnassignedSidebar
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'bg-card text-foreground hover:bg-muted border-border'
+                }`}
+                title="Abrir panel de invitados sin mesa para arrastrar al plano"
+              >
+                <Users className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>Sin mesa</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  unassignedGuests.length > 0
+                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {unassignedGuests.length}
+                </span>
+              </Button>
+
               {/* Add New Room Element Dropdown */}
               <div className="relative">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => { setShowAddElementMenu(!showAddElementMenu); setShowExportMenu(false); }}
+                  onClick={() => { setShowAddElementMenu(!showAddElementMenu); setShowExportMenu(false); setShowUnassignedSidebar(false); }}
                   className="h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 shadow-xs"
                   title="Añadir pistas de baile, barras o zonas al salón"
                 >
@@ -1097,6 +1277,143 @@ export function FloorplanCanvas({
         ref={containerRef}
         className="relative rounded-3xl border-2 border-border/80 overflow-hidden shadow-xl bg-slate-950/5 dark:bg-slate-950/40 backdrop-blur-md"
       >
+        {/* Retractable Unassigned Guests Sidebar */}
+        {showUnassignedSidebar && !readOnly && (
+          <div className="absolute top-0 left-0 bottom-0 z-40 w-72 sm:w-80 bg-card/95 backdrop-blur-2xl border-r border-border shadow-2xl flex flex-col animate-in slide-in-from-left duration-200">
+            {/* Header */}
+            <div className="p-3.5 border-b border-border/80 flex items-center justify-between bg-muted/30">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-black text-xs">
+                  🤹
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-foreground">Invitados sin mesa ({unassignedGuests.length})</h4>
+                  <p className="text-[10px] text-muted-foreground">Arrastra a una mesa para sentarlo</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUnassignedSidebar(false)}
+                className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                title="Cerrar panel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Add Guest Form */}
+            <form onSubmit={handleAddUnassignedGuest} className="p-2.5 border-b border-border/60 flex items-center gap-1.5 bg-background/50">
+              <Input
+                value={newGuestName}
+                onChange={(e) => setNewGuestName(e.target.value)}
+                placeholder="+ Nombre del invitado..."
+                className="h-8 text-xs rounded-xl bg-background"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                disabled={!newGuestName.trim()}
+                className="h-8 px-2.5 rounded-xl text-xs font-bold shrink-0 cursor-pointer"
+                title="Añadir a la lista sin mesa"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </Button>
+            </form>
+
+            {/* Search Filter */}
+            <div className="px-2.5 pt-2 pb-1">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={unassignedSearch}
+                  onChange={(e) => setUnassignedSearch(e.target.value)}
+                  placeholder="Buscar invitado..."
+                  className="h-7 text-[11px] pl-8 rounded-lg bg-muted/40 border-border/60"
+                />
+              </div>
+            </div>
+
+            {/* Unassigned Guest Cards List */}
+            <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+              {filteredUnassignedGuests.length > 0 ? (
+                filteredUnassignedGuests.map(guest => (
+                  <div
+                    key={guest.id}
+                    draggable={!readOnly}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', JSON.stringify(guest))
+                      e.dataTransfer.effectAllowed = 'move'
+                      setDraggingGuest(guest)
+                    }}
+                    onDragEnd={() => {
+                      setDraggingGuest(null)
+                      setDropTargetTableId(null)
+                    }}
+                    className="group p-2.5 rounded-xl bg-card border border-border hover:border-primary/50 shadow-xs hover:shadow-md transition-all cursor-grab active:cursor-grabbing flex items-center justify-between gap-2 select-none"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <GripVertical className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0 opacity-60 group-hover:opacity-100" />
+                      <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-[10px] shrink-0 border border-primary/20">
+                        {guest.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">{guest.name}</p>
+                        {guest.companionNames && (
+                          <p className="text-[10px] text-muted-foreground truncate">+{guest.companionNames}</p>
+                        )}
+                        {guest.dietary && (
+                          <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.2 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                            {guest.dietary}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quick seat button menu */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <select
+                        aria-label={`Sentar a ${guest.name} en una mesa`}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            handleAssignGuestToTable(e.target.value, guest)
+                            e.target.value = ''
+                          }
+                        }}
+                        className="h-6 text-[10px] font-bold rounded-lg bg-muted border border-border/80 px-1 text-foreground cursor-pointer hover:bg-muted/80"
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Sentar...</option>
+                        {tables.map(t => (
+                          <option key={t.id} value={t.id}>
+                            Mesa {t.table_number} ({getTablePeopleCount(t)}/{t.capacity || 10})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUnassignedGuest(guest.id)}
+                        className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        title="Eliminar de la lista"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="py-8 text-center px-4 space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-muted/60 flex items-center justify-center mx-auto text-muted-foreground text-sm">
+                    👥
+                  </div>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {unassignedSearch ? 'No hay coincidencias' : 'No hay invitados sin mesa'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Floating Collision Warning Banner inside Canvas */}
         {collisions.length > 0 && !readOnly && (
           <div className="absolute top-3.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-destructive/90 text-destructive-foreground text-xs font-bold shadow-xl backdrop-blur-md border border-white/20 animate-in fade-in zoom-in-95 duration-150">
@@ -1407,21 +1724,58 @@ export function FloorplanCanvas({
                 }
               }
 
-              return (
-                <g
-                  key={table.id}
-                  transform={`translate(${x}, ${y}) rotate(${rot})`}
-                  className={`${readOnly ? 'cursor-pointer' : 'cursor-move'} transition-opacity duration-150 ${isTableDragging ? 'opacity-75 scale-105' : 'opacity-100'}`}
-                  onMouseDown={(e) => handleTableMouseDown(e, table)}
-                  onTouchStart={(e) => handleTableTouchStart(e, table)}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedTableId(table.id)
-                    setSelectedLandmarkId(null)
-                  }}
-                  filter={isColliding ? 'url(#collision-glow)' : isHighlighted ? 'url(#highlight-glow)' : isSelected ? 'url(#table-glow)' : undefined}
-                >
-                  {chairElements}
+                const isDropTarget = dropTargetTableId === table.id
+
+                return (
+                  <g
+                    key={table.id}
+                    transform={`translate(${x}, ${y}) rotate(${rot})`}
+                    className={`${readOnly ? 'cursor-pointer' : 'cursor-move'} transition-opacity duration-150 ${isTableDragging ? 'opacity-75 scale-105' : 'opacity-100'}`}
+                    onMouseDown={(e) => handleTableMouseDown(e, table)}
+                    onTouchStart={(e) => handleTableTouchStart(e, table)}
+                    onDragOver={(e) => {
+                      if (draggingGuest) {
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        if (dropTargetTableId !== table.id) {
+                          setDropTargetTableId(table.id)
+                        }
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dropTargetTableId === table.id) {
+                        setDropTargetTableId(null)
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      if (draggingGuest) {
+                        handleAssignGuestToTable(table.id, draggingGuest)
+                        setDropTargetTableId(null)
+                        setDraggingGuest(null)
+                      }
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedTableId(table.id)
+                      setSelectedLandmarkId(null)
+                    }}
+                    filter={isColliding ? 'url(#collision-glow)' : isHighlighted ? 'url(#highlight-glow)' : isSelected ? 'url(#table-glow)' : undefined}
+                  >
+                    {chairElements}
+
+                    {/* Active Drag Drop Target Halo */}
+                    {draggingGuest && (
+                      <circle
+                        r="52"
+                        fill="none"
+                        stroke={isDropTarget ? '#10B981' : '#38BDF8'}
+                        strokeWidth={isDropTarget ? 3.5 : 1.5}
+                        strokeDasharray="6 4"
+                        className={isDropTarget ? 'animate-spin' : 'animate-pulse'}
+                        style={{ animationDuration: isDropTarget ? '3s' : '2s' }}
+                      />
+                    )}
 
                   {shape === 'round' ? (
                     <circle
@@ -1681,11 +2035,23 @@ export function FloorplanCanvas({
                       {idx + 1}. {p.name}
                       {p.isCompanion && <span className="text-[10px] text-muted-foreground ml-1">({p.parentGuestName})</span>}
                     </span>
-                    {p.dietary && (
-                      <span title={p.dietary}>
-                        {renderDietaryIcon(p.dietary)}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {p.dietary && (
+                        <span title={p.dietary}>
+                          {renderDietaryIcon(p.dietary)}
+                        </span>
+                      )}
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => handleUnseatGuest(p.rawAssignment)}
+                          className="p-1 rounded-md text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                          title="Mover a lista de invitados sin mesa"
+                        >
+                          <UserMinus className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               ) : (

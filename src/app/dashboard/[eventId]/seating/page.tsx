@@ -27,8 +27,8 @@ export default async function SeatingPage({
     notFound()
   }
 
-  // Load existing tables, seated guests, and room landmarks
-  const { tables, landmarks } = await getSeatingPlan(eventId)
+  // Load existing tables, seated guests, room landmarks, and unassigned guests
+  const { tables, landmarks, unassignedGuests } = await getSeatingPlan(eventId)
 
   return (
     <SeatingManager 
@@ -36,6 +36,7 @@ export default async function SeatingPage({
       event={event}
       initialTables={tables || []}
       initialLandmarks={landmarks || []}
+      initialUnassignedGuests={unassignedGuests || []}
     />
   )
 }

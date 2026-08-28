@@ -44,6 +44,16 @@ export interface ExpandedSeatedPerson {
   rawAssignment: SeatingAssignment
 }
 
+export interface UnassignedGuest {
+  id: string
+  name: string
+  companionCount?: number
+  companionNames?: string | null
+  dietary?: string | null
+  notes?: string | null
+}
+
+
 export function getAssignmentSeatCount(assignment: SeatingAssignment): number {
   if (assignment.seats_count && assignment.seats_count > 0) {
     return Number(assignment.seats_count)
