@@ -1894,8 +1894,8 @@ export function FloorplanCanvas({
         {selectedLandmark && !readOnly && (
           <div 
             className={`absolute top-4 ${
-              selectedLandmark.x > CANVAS_WIDTH * 0.48 ? 'left-4' : 'right-4'
-            } z-30 w-84 bg-card/95 backdrop-blur-xl p-4 rounded-3xl border border-border shadow-2xl space-y-3.5 animate-in fade-in duration-200 ${
+              showUnassignedSidebar ? 'right-4' : selectedLandmark.x > CANVAS_WIDTH * 0.48 ? 'left-4' : 'right-4'
+            } z-30 w-80 sm:w-84 bg-card/95 backdrop-blur-xl p-4 rounded-3xl border border-border shadow-2xl space-y-3.5 animate-in fade-in duration-200 ${
               isInteracting ? 'pointer-events-none opacity-20' : 'opacity-100'
             }`}
           >
@@ -1941,7 +1941,7 @@ export function FloorplanCanvas({
                 variant="outline"
                 onClick={() => handleDuplicateLandmark(selectedLandmark)}
                 className="text-xs font-semibold rounded-xl h-8 gap-1 cursor-pointer"
-                title="Duplicar este elemento"
+                title="Duplicar elemento"
               >
                 <Copy className="w-3.5 h-3.5" />
                 <span>Duplicar</span>
@@ -1965,7 +1965,7 @@ export function FloorplanCanvas({
         {selectedTable && !readOnly && (
           <div 
             className={`absolute top-4 ${
-              (selectedTable.pos_x || 0) > CANVAS_WIDTH * 0.48 ? 'left-4' : 'right-4'
+              showUnassignedSidebar ? 'right-4' : (selectedTable.pos_x || 0) > CANVAS_WIDTH * 0.48 ? 'left-4' : 'right-4'
             } z-20 w-80 bg-card/95 backdrop-blur-xl p-4 rounded-3xl border border-border shadow-2xl space-y-3 animate-in fade-in zoom-in-95 duration-200 transition-all ${
               isInteracting ? 'pointer-events-none opacity-20' : 'opacity-100'
             }`}
