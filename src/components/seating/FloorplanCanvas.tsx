@@ -294,6 +294,8 @@ export function FloorplanCanvas({
   // Drag start handlers
   const handleTableMouseDown = (e: React.MouseEvent, table: SeatingTable) => {
     e.stopPropagation()
+    setShowAddElementMenu(false)
+    setShowExportMenu(false)
     selectAndFocusTable(table)
     if (readOnly || resizingLandmark) return
 
@@ -308,6 +310,8 @@ export function FloorplanCanvas({
 
   const handleTableTouchStart = (e: React.TouchEvent, table: SeatingTable) => {
     e.stopPropagation()
+    setShowAddElementMenu(false)
+    setShowExportMenu(false)
     selectAndFocusTable(table)
     if (readOnly || resizingLandmark) return
 
@@ -324,6 +328,8 @@ export function FloorplanCanvas({
   const handleLandmarkMouseDown = (e: React.MouseEvent, landmark: FloorplanLandmark) => {
     if (readOnly || resizingLandmark) return
     e.stopPropagation()
+    setShowAddElementMenu(false)
+    setShowExportMenu(false)
     dragStartSnapshot.current = { tables: [...tables], landmarks: [...landmarks] }
     const coords = getSVGCoords(e.clientX, e.clientY)
     setDraggingItem({ type: 'landmark', id: landmark.id })
@@ -337,6 +343,8 @@ export function FloorplanCanvas({
 
   const handleLandmarkTouchStart = (e: React.TouchEvent, landmark: FloorplanLandmark) => {
     if (readOnly || resizingLandmark) return
+    setShowAddElementMenu(false)
+    setShowExportMenu(false)
     dragStartSnapshot.current = { tables: [...tables], landmarks: [...landmarks] }
     const touch = e.touches[0]
     const coords = getSVGCoords(touch.clientX, touch.clientY)
@@ -353,6 +361,8 @@ export function FloorplanCanvas({
   const handleStartResize = (e: React.MouseEvent, landmark: FloorplanLandmark, handle: 'br' | 'r' | 'b') => {
     if (readOnly) return
     e.stopPropagation()
+    setShowAddElementMenu(false)
+    setShowExportMenu(false)
     dragStartSnapshot.current = { tables: [...tables], landmarks: [...landmarks] }
     const coords = getSVGCoords(e.clientX, e.clientY)
     setResizingLandmark({
@@ -369,6 +379,8 @@ export function FloorplanCanvas({
   const handleStartResizeTouch = (e: React.TouchEvent, landmark: FloorplanLandmark, handle: 'br' | 'r' | 'b') => {
     if (readOnly) return
     e.stopPropagation()
+    setShowAddElementMenu(false)
+    setShowExportMenu(false)
     dragStartSnapshot.current = { tables: [...tables], landmarks: [...landmarks] }
     const touch = e.touches[0]
     const coords = getSVGCoords(touch.clientX, touch.clientY)
@@ -902,174 +914,177 @@ export function FloorplanCanvas({
       
       {/* Admin Floorplan Controls Header */}
       {!readOnly && (
-        <div className="flex items-center justify-between gap-3 p-3 bg-muted/40 rounded-2xl border border-border flex-wrap">
-          
-          {/* Left toolbar items: Undo/Redo, Snapping, Pending changes indicator */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center bg-card/80 border border-border rounded-xl p-0.5 shadow-2xs">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={handleUndo}
-                disabled={undoStack.length === 0}
-                className="h-7 w-7 rounded-lg text-foreground hover:bg-muted disabled:opacity-30 cursor-pointer"
-                title="Deshacer (Ctrl+Z)"
-              >
-                <Undo2 className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={handleRedo}
-                disabled={redoStack.length === 0}
-                className="h-7 w-7 rounded-lg text-foreground hover:bg-muted disabled:opacity-30 cursor-pointer"
-                title="Rehacer (Ctrl+Y)"
-              >
-                <Redo2 className="w-3.5 h-3.5" />
-              </Button>
-            </div>
+        <>
+          {/* Transparent Backdrop to close open menus on click outside */}
+          {(showAddElementMenu || showExportMenu) && (
+            <div 
+              className="fixed inset-0 z-40 bg-transparent" 
+              onClick={() => {
+                setShowAddElementMenu(false)
+                setShowExportMenu(false)
+              }} 
+            />
+          )}
 
-            <Button
-              type="button"
-              variant={snappingEnabled ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSnappingEnabled(!snappingEnabled)}
-              className={`h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer ${
-                snappingEnabled ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs' : 'text-muted-foreground'
-              }`}
-              title="Activar/Desactivar Guías Magnéticas Inteligentes"
-            >
-              <Magnet className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Guías Magnéticas</span>
-            </Button>
-
-            {collisions.length > 0 && (
-              <span 
-                className="px-2 py-1 rounded-xl bg-destructive/10 text-destructive text-[11px] font-extrabold border border-destructive/20 flex items-center gap-1 animate-pulse"
-                title="Hay mesas o zonas solapadas"
-              >
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>{collisions.length} {collisions.length === 1 ? 'solapamiento' : 'solapamientos'}</span>
-              </span>
-            )}
-
-            {hasUnsavedChanges && (
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-extrabold border border-amber-500/20 animate-pulse">
-                Cambios sin guardar
-              </span>
-            )}
-          </div>
-
-          {/* Right toolbar items: Add Elements, Auto-Grid, Export, Save */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center justify-between gap-3 p-3 bg-muted/40 rounded-2xl border border-border flex-wrap relative z-40">
             
-            {/* Add New Room Element Dropdown */}
-            <div className="relative">
+            {/* Left toolbar items: Undo/Redo, Snapping, Pending changes indicator */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center bg-card/80 border border-border rounded-xl p-0.5 shadow-2xs">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleUndo}
+                  disabled={undoStack.length === 0}
+                  className="h-7 w-7 rounded-lg text-foreground hover:bg-muted disabled:opacity-30 cursor-pointer"
+                  title="Deshacer (Ctrl+Z)"
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleRedo}
+                  disabled={redoStack.length === 0}
+                  className="h-7 w-7 rounded-lg text-foreground hover:bg-muted disabled:opacity-30 cursor-pointer"
+                  title="Rehacer (Ctrl+Y)"
+                >
+                  <Redo2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+
               <Button
                 type="button"
-                variant="outline"
+                variant={snappingEnabled ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => { setShowAddElementMenu(!showAddElementMenu); setShowExportMenu(false); }}
-                className="h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 shadow-xs"
-                title="Añadir pistas de baile, barras o zonas al salón"
+                onClick={() => setSnappingEnabled(!snappingEnabled)}
+                className={`h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer ${
+                  snappingEnabled ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs' : 'text-muted-foreground'
+                }`}
+                title="Activar/Desactivar Guías Magnéticas Inteligentes"
               >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>+ Elemento</span>
+                <Magnet className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Guías Magnéticas</span>
               </Button>
 
-              {showAddElementMenu && (
-                <div className="absolute right-0 top-10 z-50 w-64 p-2 rounded-2xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-2 py-1.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/60">
-                    Añadir al Salón:
-                  </div>
-                  <div className="max-h-72 overflow-y-auto space-y-1 pt-1">
-                    {LANDMARK_TEMPLATES.map(tpl => (
-                      <button
-                        key={tpl.type}
-                        type="button"
-                        onClick={() => handleAddLandmark(tpl)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold hover:bg-muted transition-colors text-left text-foreground cursor-pointer group"
-                      >
-                        <span className="text-base group-hover:scale-110 transition-transform">{tpl.icon}</span>
-                        <span className="truncate">{tpl.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              {hasUnsavedChanges && (
+                <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-extrabold border border-amber-500/20 animate-pulse">
+                  Cambios sin guardar
+                </span>
               )}
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAutoGrid}
-              className="h-8 text-xs font-semibold rounded-xl gap-1.5 cursor-pointer"
-              title="Alinear automáticamente en cuadrícula"
-            >
-              <Grid className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Auto-Alinear</span>
-            </Button>
+            {/* Right toolbar items: Add Elements, Auto-Grid, Export, Save */}
+            <div className="flex items-center gap-2 flex-wrap">
+              
+              {/* Add New Room Element Dropdown */}
+              <div className="relative">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setShowAddElementMenu(!showAddElementMenu); setShowExportMenu(false); }}
+                  className="h-8 text-xs font-bold rounded-xl gap-1.5 cursor-pointer bg-primary/10 text-primary border-primary/30 hover:bg-primary/20 shadow-xs"
+                  title="Añadir pistas de baile, barras o zonas al salón"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>+ Elemento</span>
+                </Button>
 
-            {/* Export Menu Dropdown */}
-            <div className="relative">
+                {showAddElementMenu && (
+                  <div className="absolute right-0 top-10 z-50 w-64 p-2 rounded-2xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="px-2 py-1.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/60">
+                      Añadir al Salón:
+                    </div>
+                    <div className="max-h-72 overflow-y-auto space-y-1 pt-1">
+                      {LANDMARK_TEMPLATES.map(tpl => (
+                        <button
+                          key={tpl.type}
+                          type="button"
+                          onClick={() => handleAddLandmark(tpl)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold hover:bg-muted transition-colors text-left text-foreground cursor-pointer group"
+                        >
+                          <span className="text-base group-hover:scale-110 transition-transform">{tpl.icon}</span>
+                          <span className="truncate">{tpl.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => { setShowExportMenu(!showExportMenu); setShowAddElementMenu(false); }}
+                onClick={handleAutoGrid}
                 className="h-8 text-xs font-semibold rounded-xl gap-1.5 cursor-pointer"
-                title="Exportar plano en imagen HD o SVG"
+                title="Alinear automáticamente en cuadrícula"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Exportar</span>
+                <Grid className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Auto-Alinear</span>
               </Button>
 
-              {showExportMenu && (
-                <div className="absolute right-0 top-10 z-50 w-56 p-1.5 rounded-2xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-150">
-                  <button
-                    type="button"
-                    onClick={handleExportPNG}
-                    disabled={exporting}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer"
-                  >
-                    <FileImage className="w-4 h-4 text-emerald-500" />
-                    <span>{exporting ? 'Generando...' : 'Descargar Imagen PNG (HD)'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportSVG}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer"
-                  >
-                    <Download className="w-4 h-4 text-sky-500" />
-                    <span>Descargar Vectorial SVG</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handlePrint}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer border-t border-border/50"
-                  >
-                    <Printer className="w-4 h-4 text-primary" />
-                    <span>Imprimir Plano</span>
-                  </button>
-                </div>
-              )}
-            </div>
+              {/* Export Menu Dropdown */}
+              <div className="relative">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setShowExportMenu(!showExportMenu); setShowAddElementMenu(false); }}
+                  className="h-8 text-xs font-semibold rounded-xl gap-1.5 cursor-pointer"
+                  title="Exportar plano en imagen HD o SVG"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Exportar</span>
+                </Button>
 
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleSavePositions}
-              disabled={saving || !hasUnsavedChanges}
-              className="h-8 text-xs font-bold rounded-xl gap-1.5 bg-primary text-primary-foreground shadow-md cursor-pointer"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{saving ? 'Guardando...' : 'Guardar'}</span>
-            </Button>
+                {showExportMenu && (
+                  <div className="absolute right-0 top-10 z-50 w-56 p-1.5 rounded-2xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                    <button
+                      type="button"
+                      onClick={handleExportPNG}
+                      disabled={exporting}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer"
+                    >
+                      <FileImage className="w-4 h-4 text-emerald-500" />
+                      <span>{exporting ? 'Generando...' : 'Descargar Imagen PNG (HD)'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportSVG}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 text-sky-500" />
+                      <span>Descargar Vectorial SVG</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePrint}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold hover:bg-muted text-foreground cursor-pointer border-t border-border/50"
+                    >
+                      <Printer className="w-4 h-4 text-primary" />
+                      <span>Imprimir Plano</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSavePositions}
+                disabled={saving || !hasUnsavedChanges}
+                className="h-8 text-xs font-bold rounded-xl gap-1.5 bg-primary text-primary-foreground shadow-md cursor-pointer"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{saving ? 'Guardando...' : 'Guardar'}</span>
+              </Button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Main Floorplan Canvas Container */}
@@ -1077,6 +1092,13 @@ export function FloorplanCanvas({
         ref={containerRef}
         className="relative rounded-3xl border-2 border-border/80 overflow-hidden shadow-xl bg-slate-950/5 dark:bg-slate-950/40 backdrop-blur-md"
       >
+        {/* Floating Collision Warning Banner inside Canvas */}
+        {collisions.length > 0 && !readOnly && (
+          <div className="absolute top-3.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-destructive/90 text-destructive-foreground text-xs font-bold shadow-xl backdrop-blur-md border border-white/20 animate-in fade-in zoom-in-95 duration-150">
+            <AlertTriangle className="w-4 h-4 shrink-0 animate-bounce" />
+            <span>{collisions.length} {collisions.length === 1 ? 'elemento solapado' : 'elementos solapados'}</span>
+          </div>
+        )}
         {/* Floating Zoom & Pan Controls */}
         <div className="absolute right-3.5 bottom-3.5 z-30 flex items-center gap-1 p-1 rounded-2xl bg-card/90 backdrop-blur-2xl border border-border/80 shadow-2xl shadow-black/20 animate-in fade-in zoom-in-95 duration-200">
           <button
