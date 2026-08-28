@@ -650,6 +650,21 @@ export function FloorplanCanvas({
 
   // Save positions (Tables + Landmarks in DB & LocalStorage)
   const handleSavePositions = async () => {
+    // Block saving if there are overlapping elements
+    if (collisions.length > 0) {
+      const collisionList = collisions
+        .slice(0, 3)
+        .map(c => `${c.name1} con ${c.name2}`)
+        .join(', ')
+      const extraCount = collisions.length > 3 ? ` (+${collisions.length - 3} más)` : ''
+
+      toast.error(
+        `⚠️ No se puede guardar: Hay ${collisions.length} ${collisions.length === 1 ? 'solapamiento' : 'solapamientos'} (${collisionList}${extraCount}). Separa los elementos en el salón para poder guardar.`,
+        { duration: 5000 }
+      )
+      return
+    }
+
     try {
       setSaving(true)
       const payload = tables.map(t => ({
@@ -1076,11 +1091,25 @@ export function FloorplanCanvas({
                 type="button"
                 size="sm"
                 onClick={handleSavePositions}
-                disabled={saving || !hasUnsavedChanges}
-                className="h-8 text-xs font-bold rounded-xl gap-1.5 bg-primary text-primary-foreground shadow-md cursor-pointer"
+                disabled={saving || (!hasUnsavedChanges && collisions.length === 0)}
+                className={`h-8 text-xs font-bold rounded-xl gap-1.5 shadow-md cursor-pointer transition-all ${
+                  collisions.length > 0
+                    ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground border border-destructive animate-pulse'
+                    : 'bg-primary text-primary-foreground'
+                }`}
+                title={collisions.length > 0 ? 'No se puede guardar: hay solapamientos en el plano' : 'Guardar distribución del plano'}
               >
-                <Save className="w-3.5 h-3.5" />
-                <span>{saving ? 'Guardando...' : 'Guardar'}</span>
+                {collisions.length > 0 ? (
+                  <>
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>Solapamientos ({collisions.length})</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{saving ? 'Guardando...' : 'Guardar'}</span>
+                  </>
+                )}
               </Button>
             </div>
           </div>
